@@ -1,0 +1,145 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+.venv-*/
+venv-*/
+
+# Secrets and Credentials (Aggressive Protection)
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+*secrets*.json
+*secrets*.yaml
+*secrets*.yml
+.npmrc
+.htpasswd
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+sdist/
+wheels/
+bdist.*/
+
+# Testing and coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# Caches, Linters, and Formatters
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.typecheck_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.fleet/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# General wildcards for temporary files
+*.bak
+*.tmp
+*.temp
+*.log
+*.sqlite
+*.sqlite3
+
+# Aggressive wildcards for scratch files and logs
+*.out
+*.patch
+*.diff
+*.orig
+*.rej
+*~
+*.swp
+*.swo
+
+# Root specific aggressive ignores
+/test_*.py
+/fix_*.py
+/patch_*.py
+/update_*.py
+/interrogate_output.txt
+/temp
+/tmp
+/coverage.xml
+
+# Ultra Aggressive / Catch-all wildcards for careless adding
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.rar
+*.7z
+*.pdf
+*.csv
+*.tsv
+*.dat
+*.pkl
+*.pickle
+*.h5
+*.db
+*.db-journal
+*.log.*
+*.crash
+*crash.log
+pip-log.txt
+pip-delete-this-directory.txt
+.cache/
+.hypothesis/
+*.pid
+celerybeat-schedule
+celerybeat.pid
+__pypackages__/
+*.local
+*.development
+.*.swp
+.*.swo
+.*.swn
+.*.swm
+.env.local
+.env.development
+.env.test
+.env.production
+node_modules/
+npm-debug.log*
+yarn-error.log*
+*.tfstate
+*.tfstate.*
+.terraform/
