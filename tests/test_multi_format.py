@@ -1,4 +1,5 @@
 """Test module."""
+
 # ruff: noqa: D100, F841
 # ruff: noqa: D103, E501
 import json
@@ -13,21 +14,21 @@ from py_gradeup.core import (
 )
 
 
-def test_pipfile_version(tmp_path):
+def test_pipfile_version(tmp_path) -> None:
     """Test."""
     pf = tmp_path / "Pipfile"
     pf.write_text('python_version = "3.8"\n')
     assert _get_current_python_version(str(tmp_path)) == "3.8"
 
 
-def test_env_yml_version(tmp_path):
+def test_env_yml_version(tmp_path) -> None:
     """Test."""
     env = tmp_path / "environment.yml"
     env.write_text("dependencies:\n  - python>=3.9\n")
     assert _get_current_python_version(str(tmp_path)) == "3.9"
 
 
-def test_update_pipfile_bounds(tmp_path):
+def test_update_pipfile_bounds(tmp_path) -> None:
     """Test."""
     pf = tmp_path / "Pipfile"
     pf.write_text('python_version = "3.8"\n')
@@ -35,7 +36,7 @@ def test_update_pipfile_bounds(tmp_path):
     assert 'python_version = "3.10"' in pf.read_text()
 
 
-def test_update_env_yml_bounds(tmp_path):
+def test_update_env_yml_bounds(tmp_path) -> None:
     """Test."""
     env = tmp_path / "environment.yaml"
     env.write_text("dependencies:\n  - python>=3.8\n")
@@ -43,7 +44,7 @@ def test_update_env_yml_bounds(tmp_path):
     assert "python>=3.10" in env.read_text()
 
 
-def test_get_target_files_multi(tmp_path):
+def test_get_target_files_multi(tmp_path) -> None:
     """Test."""
     (tmp_path / "Pipfile").write_text("")
     (tmp_path / "uv.lock").write_text("")
@@ -53,7 +54,7 @@ def test_get_target_files_multi(tmp_path):
 
 
 @patch("subprocess.run")
-def test_find_target_python_pipfile_lock(mock_run, tmp_path):
+def test_find_target_python_pipfile_lock(mock_run, tmp_path) -> None:
     """Test."""
     lock = tmp_path / "Pipfile.lock"
     lock.write_text(json.dumps({"default": {"requests": {"version": "==2.31.0"}}}))
@@ -62,7 +63,7 @@ def test_find_target_python_pipfile_lock(mock_run, tmp_path):
     assert deps == {"requests": "2.32.0"}
 
 
-def test_update_dependencies_pipfile(tmp_path):
+def test_update_dependencies_pipfile(tmp_path) -> None:
     """Test."""
     pf = tmp_path / "Pipfile"
     pf.write_text('requests = "==2.31.0"\n')
@@ -70,7 +71,7 @@ def test_update_dependencies_pipfile(tmp_path):
     assert 'requests = "==2.32.0"' in pf.read_text()
 
 
-def test_update_dependencies_pipfile_lock(tmp_path):
+def test_update_dependencies_pipfile_lock(tmp_path) -> None:
     """Test."""
     lock = tmp_path / "Pipfile.lock"
     lock.write_text('{\n  "requests": {\n    "version": "==2.31.0"\n  }\n}')
@@ -78,7 +79,7 @@ def test_update_dependencies_pipfile_lock(tmp_path):
     assert '"version": "==2.32.0"' in lock.read_text()
 
 
-def test_update_dependencies_env_yml(tmp_path):
+def test_update_dependencies_env_yml(tmp_path) -> None:
     """Test."""
     env = tmp_path / "environment.yml"
     env.write_text("dependencies:\n  - requests>=2.31.0\n")
@@ -87,7 +88,7 @@ def test_update_dependencies_env_yml(tmp_path):
 
 
 @patch("subprocess.run")
-def test_find_target_python_uv_lock(mock_run, tmp_path):
+def test_find_target_python_uv_lock(mock_run, tmp_path) -> None:
     """Test."""
     lock = tmp_path / "uv.lock"
     lock.write_text(
@@ -99,7 +100,7 @@ def test_find_target_python_uv_lock(mock_run, tmp_path):
 
 
 @patch("subprocess.run")
-def test_find_target_python_pipfile(mock_run, tmp_path):
+def test_find_target_python_pipfile(mock_run, tmp_path) -> None:
     """Test."""
     pf = tmp_path / "Pipfile"
     pf.write_text('requests = "==2.31.0"\nfoo = ">=1.0"\n')
@@ -109,7 +110,7 @@ def test_find_target_python_pipfile(mock_run, tmp_path):
 
 
 @patch("subprocess.run")
-def test_find_target_python_env_yml(mock_run, tmp_path):
+def test_find_target_python_env_yml(mock_run, tmp_path) -> None:
     """Test."""
     env = tmp_path / "environment.yml"
     env.write_text("dependencies:\n  - python>=3.8\n  - requests>=2.31.0\n")

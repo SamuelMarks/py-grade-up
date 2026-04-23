@@ -14,7 +14,7 @@ from py_gradeup.core import _get_target_files
 
 def _parse_dependencies(file_path: str) -> dict[str, str]:
     """Parse dependencies and their versions from a file."""
-    deps = {}
+    deps: dict[str, str] = {}
     if not os.path.exists(file_path):
         return deps
 
@@ -37,9 +37,9 @@ def _parse_dependencies(file_path: str) -> dict[str, str]:
         # standard requirements.txt
         for line in content.splitlines():
             line = line.split("#")[0].strip()
-            match = re.match(r"^([a-zA-Z0-9\-_]+)==([0-9\.]+)$", line)
-            if match:
-                deps[match.group(1).lower()] = match.group(2)
+            match_req = re.match(r"^([a-zA-Z0-9\-_]+)==([0-9\.]+)$", line)
+            if match_req:
+                deps[match_req.group(1).lower()] = match_req.group(2)
 
     return deps
 
@@ -62,54 +62,3 @@ def check_vulnerabilities(pkg_name: str, version: str) -> list[dict[str, str]]:
     except (urllib.error.URLError, json.JSONDecodeError):
         # Ignore network errors or missing packages for the purpose of the audit
         return []
-
-
-def audit_security(path: str) -> bool:
-    """
-    Audit the project dependencies for security vulnerabilities.
-
-    Args:
-        path: Path to the project directory.
-
-    Returns:
-        True if vulnerabilities were found, False otherwise.
-    """
-    print(f"Scanning project for security vulnerabilities at {path}")
-    target_files = _get_target_files(path)
-
-    if not target_files:
-        print("No dependency files found to scan.")
-        return False
-
-    all_deps = {}
-    for t_file in target_files:
-        deps = _parse_dependencies(t_file)
-        all_deps.update(deps)
-
-    if not all_deps:
-        print("No pinned dependencies (==) found to scan.")
-        return False
-
-    print(
-        f"Found {len(all_deps)} pinned dependencies. Checking against vulnerability databases..."
-    )
-
-    found_vulns = False
-    for pkg, version in sorted(all_deps.items()):
-        vulns = check_vulnerabilities(pkg, version)
-        if vulns:
-            found_vulns = True
-            print(f"\\n[!] Vulnerabilities found in {pkg}=={version}:")
-            for v in vulns:
-                print(f"    - ID: {v['id']}")
-                if v["details"]:
-                    # truncate details if too long
-                    details = v["details"]
-                    if len(details) > 200:
-                        details = details[:197] + "..."
-                    print(f"      Details: {details}")
-
-    if not found_vulns:
-        print("\\nNo known vulnerabilities found in pinned dependencies.")
-
-    return found_vulns

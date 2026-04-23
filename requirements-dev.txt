@@ -3,3 +3,5 @@ pytest-cov
 interrogate
 ruff
 build
+pre-commit
+mypy

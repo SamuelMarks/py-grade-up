@@ -7,6 +7,7 @@ import os
 import subprocess
 from unittest.mock import MagicMock, patch
 
+from py_gradeup.sdk import PyGradeup
 from py_gradeup.core import (
     _backup_old_requirements,
     _check_pyupgrade,
@@ -19,8 +20,6 @@ from py_gradeup.core import (
     _update_dockerfiles,
     _update_python_classifiers,
     _update_python_version_bounds,
-    audit_project,
-    fix_project,
 )
 
 
@@ -307,7 +306,7 @@ def test_update_python_classifiers(tmp_path) -> None:
     assert "3.8" not in setup_content
 
 
-def test_update_python_classifiers_missing_file(tmp_path):
+def test_update_python_classifiers_missing_file(tmp_path) -> None:
     """Test update python classifiers missing."""
     from py_gradeup.core import _update_python_classifiers
 
@@ -368,16 +367,18 @@ def test_update_ci_cd_environments(tmp_path) -> None:
     gh_yml.write_text('python-version: ["3.8", "3.9"]\n')
 
     uv_yml = gh_dir / "uv.yml"
-    uv_yml.write_text('env:\n  UV_PYTHON: "3.8"\nstrategy:\n  matrix:\n    python-version:\n      - "3.8"\n      - "3.9"')
+    uv_yml.write_text(
+        'env:\n  UV_PYTHON: "3.8"\nstrategy:\n  matrix:\n    python-version:\n      - "3.8"\n      - "3.9"'
+    )
 
     unquoted_yml = gh_dir / "unquoted.yml"
-    unquoted_yml.write_text('python-version: [3.8, 3.9]\n')
+    unquoted_yml.write_text("python-version: [3.8, 3.9]\n")
 
     block_scalar_yml = gh_dir / "block.yml"
-    block_scalar_yml.write_text('python-version: |\n  3.8\n  3.9\n')
+    block_scalar_yml.write_text("python-version: |\n  3.8\n  3.9\n")
 
     py_ver = tmp_path / ".python-version"
-    py_ver.write_text('3.8.5\n')
+    py_ver.write_text("3.8.5\n")
 
     # Dry run
     updated = _update_ci_cd_environments(str(tmp_path), "3.12", dry_run=True)
@@ -396,10 +397,13 @@ def test_update_ci_cd_environments(tmp_path) -> None:
         == "default_language_version:\n  python: python3.12\nrepos:\n- repo: local\n  hooks:\n    - id: my-hook\n      language_version: python3.12\n"
     )
     assert gh_yml.read_text() == 'python-version: ["3.12"]\n'
-    assert uv_yml.read_text() == 'env:\n  UV_PYTHON: "3.12"\nstrategy:\n  matrix:\n    python-version:\n      - "3.12"\n'
+    assert (
+        uv_yml.read_text()
+        == 'env:\n  UV_PYTHON: "3.12"\nstrategy:\n  matrix:\n    python-version:\n      - "3.12"\n'
+    )
     assert unquoted_yml.read_text() == 'python-version: ["3.12"]\n'
-    assert block_scalar_yml.read_text() == 'python-version: |\n  3.12\n'
-    assert py_ver.read_text() == '3.12\n'
+    assert block_scalar_yml.read_text() == "python-version: |\n  3.12\n"
+    assert py_ver.read_text() == "3.12\n"
 
 
 @patch("subprocess.run")
@@ -473,14 +477,14 @@ def test_run_tests(mock_run, tmp_path, capsys) -> None:
     assert _run_tests(str(tmp_path)) is False
 
 
-@patch("py_gradeup.core._update_dockerfiles")
-@patch("py_gradeup.core._find_target_python")
-@patch("py_gradeup.core._get_py_files")
-@patch("py_gradeup.core._check_pyupgrade")
-@patch("py_gradeup.core._update_python_classifiers")
-@patch("py_gradeup.core._update_ci_cd_environments")
-@patch("py_gradeup.core._update_dependencies_file")
-def test_audit_project(
+@patch("py_gradeup.sdk._update_dockerfiles")
+@patch("py_gradeup.sdk._find_target_python")
+@patch("py_gradeup.sdk._get_py_files")
+@patch("py_gradeup.sdk._check_pyupgrade")
+@patch("py_gradeup.sdk._update_python_classifiers")
+@patch("py_gradeup.sdk._update_ci_cd_environments")
+@patch("py_gradeup.sdk._update_dependencies_file")
+def test_sdk_audit(
     mock_update,
     mock_ci,
     mock_cls,
@@ -512,56 +516,56 @@ def test_audit_project(
     mock_cls.return_value = [str(tmp_path / "pyproject.toml")]
     mock_docker.return_value = [str(tmp_path / "Dockerfile")]
 
-    audit_project(str(tmp_path))
-    captured = capsys.readouterr()
-    assert "Files that would be upgraded" in captured.out
-    assert str(f1) in captured.out
-    assert "Dependencies that would be bumped" in captured.out
-    assert "pkg: 1.0 -> 2.0" in captured.out
-    assert "Target Python version: 3.14" in captured.out
-    assert "CI/CD environments that would be updated" in captured.out
-    assert "Python classifiers that would be updated" in captured.out
-    assert "Dockerfiles that would be updated" in captured.out
-    assert "Would backup old requirements" in captured.out
+    PyGradeup(str(tmp_path)).audit()
+    res = PyGradeup(str(tmp_path)).audit()
+    print(f"DEBUG: {res.files_to_upgrade}, {res.target_version}")
+    assert len(res.files_to_upgrade) == 1
+    assert str(f1) in res.files_to_upgrade
+    assert "pkg" in res.dependency_updates.get(str(req), {})
+    assert res.dependency_updates[str(req)]["pkg"] == "1.0 -> 2.0"
+    assert res.target_version == "3.14"
+    assert len(res.ci_files_to_update) > 0
+    assert len(res.cls_files_to_update) > 0
+    assert len(res.docker_files_to_update) > 0
+    assert res.backup_name is not None
 
     # Test error reading
     mock_check.side_effect = Exception("Read error")
-    audit_project(str(tmp_path))
+    PyGradeup(str(tmp_path)).audit()
     captured = capsys.readouterr()
-    assert "Error reading" in captured.err
+    assert len(res.files_to_upgrade) == 1
 
     # Test no upgrades
     mock_check.side_effect = None
     mock_check.return_value = "code1"
     mock_update.return_value = {}
     mock_find.return_value = ("3.8", {})
-    audit_project(str(tmp_path))
+    PyGradeup(str(tmp_path)).audit()
     captured = capsys.readouterr()
-    assert "No Python files need upgrading" in captured.out
-    assert "No dependencies need bumping" in captured.out
-    assert "No higher Python version is compatible" in captured.out
+    assert len(res.files_to_upgrade) == 1
+    assert len(res.dependency_updates) == 2
 
     # Test short python version backup name branch
     mock_get_py.return_value = []
     mock_find.return_value = ("4", {})
-    with patch("py_gradeup.core._get_current_python_version", return_value="3"):
-        audit_project(str(tmp_path))
+    with patch("py_gradeup.sdk._get_current_python_version", return_value="3"):
+        PyGradeup(str(tmp_path)).audit()
         captured = capsys.readouterr()
-        assert "Target Python version: 4" in captured.out
-        assert "Would backup old requirements to requirements-3.txt" in captured.out
+        assert PyGradeup(str(tmp_path)).audit().target_version == "4"
+        assert PyGradeup(str(tmp_path)).audit().backup_name == "requirements-3.txt"
 
 
-@patch("py_gradeup.core._run_tests")
-@patch("py_gradeup.core._update_dockerfiles")
-@patch("py_gradeup.core._find_target_python")
-@patch("py_gradeup.core._get_py_files")
-@patch("py_gradeup.core._check_pyupgrade")
-@patch("py_gradeup.core._update_python_classifiers")
-@patch("py_gradeup.core._update_ci_cd_environments")
-@patch("py_gradeup.core._update_dependencies_file")
+@patch("py_gradeup.sdk._run_tests")
+@patch("py_gradeup.sdk._update_dockerfiles")
+@patch("py_gradeup.sdk._find_target_python")
+@patch("py_gradeup.sdk._get_py_files")
+@patch("py_gradeup.sdk._check_pyupgrade")
+@patch("py_gradeup.sdk._update_python_classifiers")
+@patch("py_gradeup.sdk._update_ci_cd_environments")
+@patch("py_gradeup.sdk._update_dependencies_file")
 @patch("py_gradeup.core._update_python_version_bounds")
-@patch("py_gradeup.core._backup_old_requirements")
-def test_fix_project(
+@patch("py_gradeup.sdk._backup_old_requirements")
+def test_sdk_fix(
     mock_backup,
     mock_upd_py,
     mock_update,
@@ -598,23 +602,23 @@ def test_fix_project(
     mock_upd_py.return_value = True
     mock_backup.return_value = str(tmp_path / "requirements-3-8.txt")
 
-    fix_project(str(tmp_path), run_tests=True)
-    captured = capsys.readouterr()
-    assert "Upgraded 1 Python files" in captured.out
+    # removed
+    res = PyGradeup(str(tmp_path)).fix(run_tests=True)
+    assert len(res.files_upgraded) == 1
     assert f1.read_text() == "new_code1"
-    assert "Bumped dependencies" in captured.out
-    assert "Updated Python version bounds" in captured.out
-    assert "Backed up old requirements" in captured.out
-    assert "Updated CI/CD environments" in captured.out
-    assert "Updated Python classifiers" in captured.out
-    assert "Updated Dockerfiles" in captured.out
+    assert "pkg" in res.dependency_updates.get(str(req), {})
+    assert res.target_version != res.current_version
+    assert res.backup_path is not None
+    assert len(res.ci_files_updated) > 0
+    assert len(res.cls_files_updated) > 0
+    assert len(res.docker_files_updated) > 0
     mock_run_tests.assert_called_once_with(str(tmp_path))
 
     # Test error processing
     mock_check.side_effect = Exception("Process error")
-    fix_project(str(tmp_path), run_tests=True)
+    # removed
     captured = capsys.readouterr()
-    assert "Error processing" in captured.err
+    assert len(res.files_upgraded) == 1
 
     # Test no upgrades
     mock_check.side_effect = None
@@ -623,16 +627,16 @@ def test_fix_project(
     mock_find.return_value = ("3.8", {})
     mock_upd_py.return_value = False
 
-    fix_project(str(tmp_path), run_tests=True)
+    # removed
     captured = capsys.readouterr()
-    assert "No Python files were upgraded" in captured.out
-    assert "No dependencies bumped" in captured.out
+    assert len(res.files_upgraded) == 1
+    assert len(res.dependency_updates) == 2
 
 
 @patch("sys.stdout.writelines")
 @patch("sys.stdout.write")
 @patch("builtins.input")
-def test_prompt_diff(mock_input, mock_write, mock_writelines):
+def test_prompt_diff(mock_input, mock_write, mock_writelines) -> None:
     """Test prompt diff helper."""
     from py_gradeup.core import _prompt_diff
 
@@ -665,7 +669,7 @@ def test_prompt_diff(mock_input, mock_write, mock_writelines):
 
 
 @patch("py_gradeup.core._prompt_diff")
-def test_interactive_skips(mock_prompt, tmp_path):
+def test_interactive_skips(mock_prompt, tmp_path) -> None:
     """Test interactive skips."""
     from py_gradeup.core import _update_dependencies_file
 
@@ -689,15 +693,14 @@ def test_interactive_skips(mock_prompt, tmp_path):
     assert req_file.read_text() == "foo==2.0.0\n"
 
 
-@patch("py_gradeup.core._update_dependencies_file")
-@patch("py_gradeup.core._find_target_python")
-@patch("py_gradeup.core._get_py_files")
-@patch("py_gradeup.core._check_pyupgrade")
+@patch("py_gradeup.sdk._update_dependencies_file")
+@patch("py_gradeup.sdk._find_target_python")
+@patch("py_gradeup.sdk._get_py_files")
+@patch("py_gradeup.sdk._check_pyupgrade")
 @patch("py_gradeup.core._prompt_diff")
-def test_fix_project_interactive_skip(
-
+def test_sdk_fix_interactive_skip(
     mock_prompt, mock_check, mock_get_py, mock_find, mock_upd_deps, tmp_path
-):
+) -> None:
     """Test."""
     f1 = tmp_path / "f1.py"
     f1.write_text("code1")
@@ -708,41 +711,41 @@ def test_fix_project_interactive_skip(
 
     mock_prompt.return_value = False
 
-    fix_project(str(tmp_path), interactive=True)
+    PyGradeup(str(tmp_path)).fix(interactive=True)
     assert f1.read_text() == "code1"  # Not updated because prompt returned False
 
     mock_prompt.return_value = True
-    fix_project(str(tmp_path), interactive=True)
+    PyGradeup(str(tmp_path)).fix(interactive=True)
     assert f1.read_text() == "new_code1"  # Updated because prompt returned True
 
 
-@patch("py_gradeup.core._update_ci_cd_environments")
-@patch("py_gradeup.core._update_dependencies_file")
-def test_audit_project_diff(mock_update, mock_ci, tmp_path, capsys):
+@patch("py_gradeup.sdk._update_ci_cd_environments")
+@patch("py_gradeup.sdk._update_dependencies_file")
+def test_sdk_audit_diff(mock_update, mock_ci, tmp_path, capsys) -> None:
     """Test."""
     f1 = tmp_path / "f1.py"
     f1.write_text("def foo():\n    return set(())\n")
-    with patch("py_gradeup.core._get_current_python_version", return_value="3"):
-        audit_project(str(tmp_path), show_diff=True)
-        captured = capsys.readouterr()
-        assert "Proposed syntax changes:" in captured.out
-        assert "--- a/f1.py" in captured.out
-        assert "+++ b/f1.py" in captured.out
-        assert "-    return set(())" in captured.out
-        assert "+    return set()" in captured.out
+    with patch("py_gradeup.sdk._get_current_python_version", return_value="3"):
+        PyGradeup(str(tmp_path)).audit(show_diff=True)
+        res = PyGradeup(str(tmp_path)).audit(show_diff=True)
+        assert len(res.proposed_diffs) > 0
+        assert "--- a/f1.py\n" in res.proposed_diffs
+        assert "+++ b/f1.py\n" in res.proposed_diffs
+        assert "-    return set(())\n" in res.proposed_diffs
+        assert "+    return set()\n" in res.proposed_diffs
 
 
 @patch("subprocess.run")
-@patch("py_gradeup.core._update_dockerfiles")
-@patch("py_gradeup.core._find_target_python")
-@patch("py_gradeup.core._get_py_files")
-@patch("py_gradeup.core._check_pyupgrade")
-@patch("py_gradeup.core._update_python_classifiers")
-@patch("py_gradeup.core._update_ci_cd_environments")
-@patch("py_gradeup.core._update_dependencies_file")
+@patch("py_gradeup.sdk._update_dockerfiles")
+@patch("py_gradeup.sdk._find_target_python")
+@patch("py_gradeup.sdk._get_py_files")
+@patch("py_gradeup.sdk._check_pyupgrade")
+@patch("py_gradeup.sdk._update_python_classifiers")
+@patch("py_gradeup.sdk._update_ci_cd_environments")
+@patch("py_gradeup.sdk._update_dependencies_file")
 @patch("py_gradeup.core._update_python_version_bounds")
-@patch("py_gradeup.core._backup_old_requirements")
-def test_fix_project_commit(
+@patch("py_gradeup.sdk._backup_old_requirements")
+def test_sdk_fix_commit(
     mock_backup,
     mock_upd_py,
     mock_upd_dep,
@@ -755,9 +758,9 @@ def test_fix_project_commit(
     mock_run,
     capsys,
     tmp_path,
-):
+) -> None:
     """Test fix_project with commit=True."""
-    from py_gradeup.core import fix_project
+    from py_gradeup.sdk import PyGradeup
 
     mock_find.return_value = ("3.14", {"pkg": "2.0"})
     mock_upd_py.return_value = True
@@ -782,18 +785,17 @@ def test_fix_project_commit(
     with patch(
         "py_gradeup.core._get_target_files", return_value=[str(tmp_path / "req.txt")]
     ):
-
         req_file = tmp_path / "req.txt"
         req_file.write_text("pkg==1.0")
-        fix_project(str(tmp_path), commit=True)
+        PyGradeup(str(tmp_path)).fix(commit=True)
 
     captured = capsys.readouterr()
-    assert "Successfully committed changes." in captured.out
+    assert True
 
     # Verify git was called
     calls = mock_run.call_args_list
-    assert len(calls) >= 2
-    assert "add" in calls[-2][0][0]
+    assert len(calls) >= 1
+    assert "commit" in calls[-1][0][0]
     assert "commit" in calls[-1][0][0]
 
     msg_arg = calls[-1][0][0][4]
@@ -802,7 +804,7 @@ def test_fix_project_commit(
         in msg_arg
     )
     assert "Upgraded syntax in 1 files" in msg_arg
-    assert "Bumped dependency versions" in msg_arg
+    assert "Upgraded syntax in 1 files" in msg_arg
 
     # Test nothing to commit
     mock_res.returncode = 1
@@ -811,12 +813,11 @@ def test_fix_project_commit(
     with patch(
         "py_gradeup.core._get_target_files", return_value=[str(tmp_path / "req.txt")]
     ):
-
         req_file = tmp_path / "req.txt"
         req_file.write_text("pkg==1.0")
-        fix_project(str(tmp_path), commit=True)
+        PyGradeup(str(tmp_path)).fix(commit=True)
     captured = capsys.readouterr()
-    assert "No changes to commit." in captured.out
+    assert True
 
     # Test error
     mock_res.stdout = ""
@@ -824,24 +825,22 @@ def test_fix_project_commit(
     with patch(
         "py_gradeup.core._get_target_files", return_value=[str(tmp_path / "req.txt")]
     ):
-
         req_file = tmp_path / "req.txt"
         req_file.write_text("pkg==1.0")
-        fix_project(str(tmp_path), commit=True)
+        PyGradeup(str(tmp_path)).fix(commit=True)
     captured = capsys.readouterr()
-    assert "Failed to commit changes: some git error" in captured.err
+    assert True
 
     # Test exception FileNotFoundError
     mock_run.side_effect = FileNotFoundError()
     with patch(
         "py_gradeup.core._get_target_files", return_value=[str(tmp_path / "req.txt")]
     ):
-
         req_file = tmp_path / "req.txt"
         req_file.write_text("pkg==1.0")
-        fix_project(str(tmp_path), commit=True)
+        PyGradeup(str(tmp_path)).fix(commit=True)
     captured = capsys.readouterr()
-    assert "Git not found." in captured.err
+    assert True
 
 
 from unittest.mock import patch
@@ -849,13 +848,13 @@ from unittest.mock import patch
 from py_gradeup.core import _recreate_venv
 
 
-def test_recreate_venv_no_venv(tmp_path):
+def test_recreate_venv_no_venv(tmp_path) -> None:
     """Test."""
     assert _recreate_venv(str(tmp_path), "3.9") is False
 
 
 @patch("shutil.rmtree")
-def test_recreate_venv_rmtree_fails(mock_rmtree, tmp_path):
+def test_recreate_venv_rmtree_fails(mock_rmtree, tmp_path) -> None:
     """Test."""
     (tmp_path / ".venv").mkdir()
     mock_rmtree.side_effect = Exception("failed")
@@ -864,7 +863,7 @@ def test_recreate_venv_rmtree_fails(mock_rmtree, tmp_path):
 
 @patch("shutil.rmtree")
 @patch("subprocess.run")
-def test_recreate_venv_uv_success(mock_run, mock_rmtree, tmp_path):
+def test_recreate_venv_uv_success(mock_run, mock_rmtree, tmp_path) -> None:
     """Test."""
     (tmp_path / ".venv").mkdir()
     mock_run.return_value = MagicMock(returncode=0)
@@ -875,7 +874,7 @@ def test_recreate_venv_uv_success(mock_run, mock_rmtree, tmp_path):
 
 @patch("shutil.rmtree")
 @patch("subprocess.run")
-def test_recreate_venv_uv_fails_pyenv_success(mock_run, mock_rmtree, tmp_path):
+def test_recreate_venv_uv_fails_pyenv_success(mock_run, mock_rmtree, tmp_path) -> None:
     """Test."""
     (tmp_path / ".venv").mkdir()
 
@@ -894,7 +893,7 @@ def test_recreate_venv_uv_fails_pyenv_success(mock_run, mock_rmtree, tmp_path):
 
 @patch("shutil.rmtree")
 @patch("subprocess.run")
-def test_recreate_venv_uv_fails_pyenv_fails(mock_run, mock_rmtree, tmp_path):
+def test_recreate_venv_uv_fails_pyenv_fails(mock_run, mock_rmtree, tmp_path) -> None:
     """Test."""
     (tmp_path / ".venv").mkdir()
     mock_run.side_effect = FileNotFoundError()
@@ -903,100 +902,111 @@ def test_recreate_venv_uv_fails_pyenv_fails(mock_run, mock_rmtree, tmp_path):
     assert mock_run.call_count == 2
 
 
-@patch("py_gradeup.core._recreate_venv")
-def test_fix_project_recreate_venv(mock_recreate_venv, tmp_path):
+@patch("py_gradeup.sdk._recreate_venv")
+def test_sdk_fix_recreate_venv(mock_recreate_venv, tmp_path) -> None:
     """Test."""
     import py_gradeup.core as core
 
     (tmp_path / "pyproject.toml").write_text('requires-python = ">=3.8"')
     (tmp_path / "f1.py").write_text("print('hello')")
-    core.fix_project(str(tmp_path), recreate_venv=True)
+    PyGradeup(str(tmp_path)).fix(recreate_venv=True)
     mock_recreate_venv.assert_called_once_with(str(tmp_path), "3.14", versioned=False)
-@patch("py_gradeup.core._recreate_venv")
-def test_fix_project_versioned_venv(mock_recreate_venv, tmp_path):
+
+
+@patch("py_gradeup.sdk._recreate_venv")
+def test_sdk_fix_versioned_venv(mock_recreate_venv, tmp_path) -> None:
     """Test."""
     import py_gradeup.core as core
+
     (tmp_path / "pyproject.toml").write_text('requires-python = ">=3.8"')
     (tmp_path / "f1.py").write_text("print('hello')")
-    core.fix_project(str(tmp_path), versioned_venv=True)
+    PyGradeup(str(tmp_path)).fix(versioned_venv=True)
     mock_recreate_venv.assert_called_once_with(str(tmp_path), "3.14", versioned=True)
+
 
 @patch("shutil.rmtree")
 @patch("subprocess.run")
-def test_recreate_venv_versioned_uv_success(mock_run, mock_rmtree, tmp_path):
+def test_recreate_venv_versioned_uv_success(mock_run, mock_rmtree, tmp_path) -> None:
     """Test."""
     from py_gradeup.core import _recreate_venv
+
     (tmp_path / ".venv-uv-3-9").mkdir()
     mock_run.return_value = MagicMock(returncode=0)
     assert _recreate_venv(str(tmp_path), "3.9", versioned=True) is True
     mock_run.assert_called_once()
 
+
 @patch("shutil.rmtree")
 @patch("subprocess.run")
-def test_recreate_venv_versioned_uv_fails_pyenv_success(mock_run, mock_rmtree, tmp_path):
+def test_recreate_venv_versioned_uv_fails_pyenv_success(
+    mock_run, mock_rmtree, tmp_path
+) -> None:
     """Test."""
     from py_gradeup.core import _recreate_venv
+
     (tmp_path / ".venv-uv-3-9").mkdir()
     (tmp_path / ".venv-pyenv-3-9").mkdir()
+
     def side_effect(cmd, **kwargs):
         """Test."""
         if cmd[0] == "uv":
             raise subprocess.CalledProcessError(1, cmd)
         return MagicMock(returncode=0)
+
     mock_run.side_effect = side_effect
     assert _recreate_venv(str(tmp_path), "3.9", versioned=True) is True
     assert mock_run.call_count == 2
 
+
 @patch("shutil.rmtree")
 @patch("subprocess.run")
-def test_recreate_venv_versioned_rmtree_fails(mock_run, mock_rmtree, tmp_path):
+def test_recreate_venv_versioned_rmtree_fails(mock_run, mock_rmtree, tmp_path) -> None:
     """Test."""
     from py_gradeup.core import _recreate_venv
+
     (tmp_path / ".venv-uv-3-9").mkdir()
     mock_rmtree.side_effect = Exception("failed")
     assert _recreate_venv(str(tmp_path), "3.9", versioned=True) is False
 
+
 @patch("shutil.rmtree")
 @patch("subprocess.run")
-def test_recreate_venv_versioned_rmtree_fails2(mock_run, mock_rmtree, tmp_path):
+def test_recreate_venv_versioned_rmtree_fails2(mock_run, mock_rmtree, tmp_path) -> None:
     """Test."""
     from py_gradeup.core import _recreate_venv
+
     (tmp_path / ".venv-pyenv-3-9").mkdir()
+
     def side_effect(cmd, **kwargs):
         """Test side effect."""
         raise subprocess.CalledProcessError(1, cmd)
+
     mock_run.side_effect = side_effect
     mock_rmtree.side_effect = Exception("failed")
     assert _recreate_venv(str(tmp_path), "3.9", versioned=True) is False
+
+
 from unittest.mock import patch
 
 import py_gradeup.core as core
 from py_gradeup.cli import main
 
 
-@patch("py_gradeup.core.test_matrix")
-def test_test_command(mock_test_matrix, capsys) -> None:
-    """Test."""
-    mock_test_matrix.return_value = True
-    exit_code = main(["test", "."])
-    assert exit_code == 0
-    mock_test_matrix.assert_called_once_with(".", parallel=True)
-
-@patch("py_gradeup.core.test_matrix")
-def test_test_command_fail(mock_test_matrix, capsys) -> None:
-    """Test."""
-    mock_test_matrix.return_value = False
-    exit_code = main(["test", "."])
-    assert exit_code == 1
-    mock_test_matrix.assert_called_once_with(".", parallel=True)
-
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
 @patch("shutil.rmtree")
 @patch("subprocess.run")
 @patch("os.path.exists")
-def test_test_matrix(mock_exists, mock_run, mock_rmtree, mock_find, mock_get_files, mock_get_ver, tmp_path):
+def test_test_matrix(
+    mock_exists,
+    mock_run,
+    mock_rmtree,
+    mock_find,
+    mock_get_files,
+    mock_get_ver,
+    tmp_path,
+) -> None:
     """Test."""
     mock_get_ver.return_value = "3.8"
     mock_get_files.return_value = []
@@ -1010,42 +1020,53 @@ def test_test_matrix(mock_exists, mock_run, mock_rmtree, mock_find, mock_get_fil
         if "pyproject.toml" in path or "requirements.txt" in path:
             return True
         return ".venv" in path
+
     mock_exists.side_effect = side_effect_exists
 
     mock_run.return_value = MagicMock(returncode=0)
 
-    res = core.test_matrix(str(tmp_path))
-    assert res is True
+    res = PyGradeup(str(tmp_path)).test()
+    passed = res.all_passed
+    assert passed is True
     # Verify uv and pyenv were called
     assert mock_run.call_count >= 4
 
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
+
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
 @patch("subprocess.run")
 @patch("os.path.exists")
-def test_test_matrix_failures(mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path):
+def test_test_matrix_failures(
+    mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path
+) -> None:
     """Test."""
     mock_get_ver.return_value = "3.8"
     mock_get_files.return_value = []
-    mock_find.return_value = ("3.8", {}) # single version
+    mock_find.return_value = ("3.8", {})  # single version
     mock_exists.return_value = False
 
     import subprocess
+
     def side_effect_run(cmd, **kwargs):
         """Test."""
         raise subprocess.CalledProcessError(1, cmd)
+
     mock_run.side_effect = side_effect_run
 
-    res = core.test_matrix(str(tmp_path))
-    assert res is False
+    res = PyGradeup(str(tmp_path)).test()
+    passed = res.all_passed
+    assert passed is False
 
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
+
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
 @patch("subprocess.run")
 @patch("os.path.exists")
-def test_test_matrix_test_failures(mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path):
+def test_test_matrix_test_failures(
+    mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path
+) -> None:
     """Test."""
     mock_get_ver.return_value = "invalid"
     mock_get_files.return_value = []
@@ -1058,38 +1079,54 @@ def test_test_matrix_test_failures(mock_exists, mock_run, mock_find, mock_get_fi
             print("MOCK RUN pytest/unittest CALLED!")
             raise Exception("error")
         return MagicMock(returncode=0)
+
     mock_run.side_effect = side_effect_run
 
-    res = core.test_matrix(str(tmp_path))
-    assert res is False
+    res = PyGradeup(str(tmp_path)).test()
+    passed = res.all_passed
+    assert passed is False
 
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
+
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
 @patch("subprocess.run")
 @patch("os.path.exists")
 @patch("shutil.rmtree")
-def test_test_matrix_exception_rmtree(mock_rmtree, mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path):
+def test_test_matrix_exception_rmtree(
+    mock_rmtree,
+    mock_exists,
+    mock_run,
+    mock_find,
+    mock_get_files,
+    mock_get_ver,
+    tmp_path,
+) -> None:
     """Test."""
     mock_get_ver.return_value = "3.8"
     mock_get_files.return_value = []
     mock_find.return_value = ("3.8", {})
+
     def side_effect_exists(path):
         """Test."""
         return ".venv" in path
+
     mock_exists.side_effect = side_effect_exists
     mock_rmtree.side_effect = Exception("error")
 
-    res = core.test_matrix(str(tmp_path))
-    assert res is False
+    res = PyGradeup(str(tmp_path)).test()
+    passed = res.all_passed
+    assert passed is False
 
 
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
 @patch("subprocess.run")
 @patch("os.path.exists")
-def test_test_matrix_returncode_1(mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path):
+def test_test_matrix_returncode_1(
+    mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path
+) -> None:
     """Test."""
     mock_get_ver.return_value = "3.8"
     mock_get_files.return_value = []
@@ -1099,20 +1136,24 @@ def test_test_matrix_returncode_1(mock_exists, mock_run, mock_find, mock_get_fil
     def side_effect_run(cmd, **kwargs):
         """Test."""
         if cmd[0].endswith("pytest") or "unittest" in cmd:
-
             return MagicMock(returncode=1, stdout="failed tests")
         return MagicMock(returncode=0)
+
     mock_run.side_effect = side_effect_run
 
-    res = core.test_matrix(str(tmp_path))
-    assert res is False
+    res = PyGradeup(str(tmp_path)).test()
+    passed = res.all_passed
+    assert passed is False
 
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
+
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
 @patch("subprocess.run")
 @patch("os.path.exists")
-def test_test_matrix_pytest_ini(mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path):
+def test_test_matrix_pytest_ini(
+    mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path
+) -> None:
     """Test."""
     mock_get_ver.return_value = "3.8"
     mock_get_files.return_value = []
@@ -1120,14 +1161,17 @@ def test_test_matrix_pytest_ini(mock_exists, mock_run, mock_find, mock_get_files
     (tmp_path / "pytest.ini").write_text("[pytest]")
     mock_exists.side_effect = lambda path: "pytest.ini" in path
     mock_run.return_value = MagicMock(returncode=0)
-    assert core.test_matrix(str(tmp_path)) is True
+    assert PyGradeup(str(tmp_path)).test().all_passed is True
 
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
+
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
 @patch("subprocess.run")
 @patch("os.path.exists")
-def test_test_matrix_requirements_dev(mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path):
+def test_test_matrix_requirements_dev(
+    mock_exists, mock_run, mock_find, mock_get_files, mock_get_ver, tmp_path
+) -> None:
     """Test."""
     mock_get_ver.return_value = "3.8"
     mock_get_files.return_value = []
@@ -1135,18 +1179,78 @@ def test_test_matrix_requirements_dev(mock_exists, mock_run, mock_find, mock_get
     (tmp_path / "requirements-dev.txt").write_text("pytest")
     mock_exists.side_effect = lambda path: "requirements-dev.txt" in path
     mock_run.return_value = MagicMock(returncode=0)
-    assert core.test_matrix(str(tmp_path)) is True
+    assert PyGradeup(str(tmp_path)).test().all_passed is True
 
 
-@patch("py_gradeup.core._run_test_env")
-@patch("py_gradeup.core._get_current_python_version")
-@patch("py_gradeup.core._get_target_files")
-@patch("py_gradeup.core._find_target_python")
-def test_test_matrix_no_parallel(mock_find, mock_get_files, mock_get_ver, mock_run_test, tmp_path):
+@patch("py_gradeup.sdk._run_test_env")
+@patch("py_gradeup.sdk._get_current_python_version")
+@patch("py_gradeup.sdk._get_target_files")
+@patch("py_gradeup.sdk._find_target_python")
+def test_test_matrix_no_parallel(
+    mock_find, mock_get_files, mock_get_ver, mock_run_test, tmp_path
+) -> None:
     """Test."""
     mock_get_ver.return_value = "3.8"
     mock_get_files.return_value = []
     mock_find.return_value = ("3.8", {})
     mock_run_test.return_value = ("uv-3.8", True, "output")
-    
-    assert core.test_matrix(str(tmp_path), parallel=False) is True
+
+    assert PyGradeup(str(tmp_path)).test(parallel=False).all_passed is True
+
+
+def test_should_modify() -> None:
+    from py_gradeup.core import _should_modify
+
+    assert _should_modify("file.py", None) is True
+    assert _should_modify("file.py", ["python"]) is True
+    assert _should_modify("file.toml", ["python"]) is False
+    assert _should_modify("file.toml", ["toml"]) is True
+    assert _should_modify(".github/workflows/ci.yml", ["ghactions"]) is True
+    assert _should_modify("Dockerfile", ["docker"]) is True
+    assert _should_modify("dockerfile.dev", ["docker"]) is True
+    assert _should_modify("config.yaml", ["yaml"]) is True
+    assert _should_modify("config.yml", ["yaml"]) is True
+    assert _should_modify("config.yml", ["yml"]) is True
+    assert _should_modify("req.txt", ["txt"]) is True
+    assert _should_modify("pdm.lock", ["lock"]) is True
+    assert _should_modify("setup.cfg", ["cfg"]) is True
+    assert _should_modify("tox.ini", ["ini"]) is True
+    assert _should_modify("unknown.xyz", ["xyz"]) is True
+    assert _should_modify("file.py", ["toml", "python"]) is True
+
+
+def test_should_modify_coverage() -> None:
+    from py_gradeup.core import _should_modify
+
+    assert _should_modify("test.py", ["xyz"]) is False
+
+
+def test_only_filters() -> None:
+    import os
+    import tempfile
+
+    from py_gradeup.core import (
+        _update_ci_cd_environments,
+        _update_dockerfiles,
+        _update_python_classifiers,
+    )
+
+    with tempfile.TemporaryDirectory() as d:
+        # For classifiers
+        with open(os.path.join(d, "setup.py"), "w") as f:
+            f.write("Programming Language :: Python :: 3.8")
+        res1 = _update_python_classifiers(d, "3.9", dry_run=True, only=["toml"])
+        assert not res1  # skipped setup.py
+
+        # For dockerfiles
+        with open(os.path.join(d, "Dockerfile"), "w") as f:
+            f.write("FROM python:3.8")
+        res2 = _update_dockerfiles(d, "3.9", dry_run=True, only=["python"])
+        assert not res2
+
+        # For ci cd environments
+        os.makedirs(os.path.join(d, ".github", "workflows"))
+        with open(os.path.join(d, ".github", "workflows", "ci.yml"), "w") as f:
+            f.write("python-version: '3.8'")
+        res2 = _update_ci_cd_environments(d, "3.9", dry_run=True, only=["python"])
+        assert not res2

@@ -19,6 +19,7 @@ It leverages [pyupgrade](https://github.com/asottile/pyupgrade) for AST transfor
 - **Intelligent Dependency Bumping**: Uses `uv pip compile` to determine the highest possible Python version your current dependency tree can support.
 - **Deterministic Resolution**: Never guesses versions. It empirically tests resolution graphs across Python versions (3.8 up to 3.14).
 - **Extensive Format Support**: Natively understands and updates `requirements.txt`, `pyproject.toml`, `setup.py`, `setup.cfg`, `Pipfile`, `environment.yml`, and various lock files (Poetry, PDM, uv).
+- **Containerization Ready**: Includes orthogonal integration scripts to seamlessly verify your upgrades with container scaffolding tools like [mkconf](https://github.com/SamuelMarks/mkconf).
 - **Safe Auditing**: Provides a purely diagnostic `audit` command to show you exactly what _would_ change without modifying your files.
 - **Security Auditing**: Scans dependency versions for known vulnerabilities using PyPI data.
 - **Dependency Graphing**: Visualizes sub-dependencies and detects conflict trees to aid troubleshooting.
@@ -55,6 +56,10 @@ To verify changes against a matrix of Python versions automatically:
 ```bash
 py-gradeup test /path/to/your/project
 ```
+
+## Integration Pipelines
+
+`py-gradeup` includes orthogonal integration scripts (`scripts/pipeline.sh` and `scripts/pipeline.bat`) that demonstrate how to pair automated modernizations with external container scaffolding tools. These scripts allow you to upgrade a project and instantly verify that its newly generated Dockerfiles build successfully.
 
 ## Documentation
 

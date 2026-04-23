@@ -10,7 +10,7 @@ from py_gradeup.core import (
 )
 
 
-def test_get_target_files_lock(tmp_path):
+def test_get_target_files_lock(tmp_path) -> None:
     """Test getting target files."""
     (tmp_path / "poetry.lock").write_text("")
     (tmp_path / "pdm.lock").write_text("")
@@ -20,7 +20,7 @@ def test_get_target_files_lock(tmp_path):
 
 
 @patch("subprocess.run")
-def test_find_target_python_lock(mock_run, tmp_path):
+def test_find_target_python_lock(mock_run, tmp_path) -> None:
     """Test finding target python lock."""
     lock_file = tmp_path / "poetry.lock"
     lock_file.write_text('[[package]]\nname = "certifi"\nversion = "2023.7.22"')
@@ -35,7 +35,7 @@ def test_find_target_python_lock(mock_run, tmp_path):
     assert "certifi" in deps
 
 
-def test_update_dependencies_file_lock(tmp_path):
+def test_update_dependencies_file_lock(tmp_path) -> None:
     """Test updating lock deps."""
     lock_file = tmp_path / "poetry.lock"
     lock_file.write_text('[[package]]\nname = "certifi"\nversion = "2023.7.22"\n')

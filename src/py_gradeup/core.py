@@ -11,7 +11,11 @@ import sys
 import tempfile
 
 try:
-    from pyupgrade._main import Settings, _fix_plugins, _fix_tokens
+    from pyupgrade._main import (  # type: ignore[import-untyped]
+        Settings,
+        _fix_plugins,
+        _fix_tokens,
+    )
 except ImportError:  # pragma: no cover
     # fallback for tests if pyupgrade isn't fully available
     Settings = None
@@ -49,7 +53,6 @@ def _prompt_diff(file_path: str, old_content: str, new_content: str) -> bool:
             return True
         elif ans in ("n", "no", ""):
             return False
-        print("Please answer y or n.")
 
 
 def _get_py_files(path: str) -> list[str]:
@@ -129,15 +132,41 @@ def _get_current_python_version(path: str) -> str:
     return "3.8"  # default
 
 
-def _update_python_version_bounds(
+def _should_modify(filepath: str, only_types: list[str] | None) -> bool:
+    """Check if a file should be modified based on the only flag."""
+    if not only_types:
+        return True
 
-    path: str, target_py: str, dry_run: bool = False
+    filepath_lower = filepath.lower()
+    for t in only_types:
+        t = t.lower().strip()
+        if t == "python" and filepath_lower.endswith(".py"):
+            return True
+        if t == "toml" and filepath_lower.endswith(".toml"):
+            return True
+        if t == "ghactions" and ".github/workflows" in filepath_lower.replace(
+            "\\", "/"
+        ):
+            return True
+        if t == "docker" and "dockerfile" in os.path.basename(filepath_lower):
+            return True
+        if t in ("yaml", "yml") and (
+            filepath_lower.endswith(".yaml") or filepath_lower.endswith(".yml")
+        ):
+            return True
+        if filepath_lower.endswith(f".{t}"):
+            return True
+    return False
+
+
+def _update_python_version_bounds(
+    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
 ) -> bool:
     """Update requires-python in pyproject.toml, setup.cfg, and setup.py."""
     updated = False
 
     pyproject_path = os.path.join(path, "pyproject.toml")
-    if os.path.exists(pyproject_path):
+    if os.path.exists(pyproject_path) and _should_modify(pyproject_path, only):
         with open(pyproject_path, encoding="utf-8") as f:
             content = f.read()
         new_content, count = re.subn(
@@ -152,7 +181,7 @@ def _update_python_version_bounds(
                     f.write(new_content)
 
     setup_cfg_path = os.path.join(path, "setup.cfg")
-    if os.path.exists(setup_cfg_path):
+    if os.path.exists(setup_cfg_path) and _should_modify(setup_cfg_path, only):
         with open(setup_cfg_path, encoding="utf-8") as f:
             content = f.read()
         new_content, count = re.subn(
@@ -165,7 +194,7 @@ def _update_python_version_bounds(
                     f.write(new_content)
 
     setup_py_path = os.path.join(path, "setup.py")
-    if os.path.exists(setup_py_path):
+    if os.path.exists(setup_py_path) and _should_modify(setup_py_path, only):
         with open(setup_py_path, encoding="utf-8") as f:
             content = f.read()
         new_content, count = re.subn(
@@ -180,7 +209,7 @@ def _update_python_version_bounds(
                     f.write(new_content)
 
     pipfile_path = os.path.join(path, "Pipfile")
-    if os.path.exists(pipfile_path):
+    if os.path.exists(pipfile_path) and _should_modify(pipfile_path, only):
         with open(pipfile_path, encoding="utf-8") as f:
             content = f.read()
         new_content, count = re.subn(
@@ -196,7 +225,7 @@ def _update_python_version_bounds(
 
     for env_file in ["environment.yml", "environment.yaml"]:
         env_path = os.path.join(path, env_file)
-        if os.path.exists(env_path):
+        if os.path.exists(env_path) and _should_modify(env_path, only):
             with open(env_path, encoding="utf-8") as f:
                 content = f.read()
             new_content, count = re.subn(
@@ -337,7 +366,7 @@ def _find_target_python(
     if not target_files:
         return candidates[0] if candidates else current_ver, {}
 
-    tmp_paths = []
+    tmp_paths: list[str] = []
     compile_targets = []
 
     try:
@@ -413,7 +442,6 @@ def _find_target_python(
 
 
 def _backup_old_requirements(
-
     path: str, current_ver: str, target_files: list[str]
 ) -> str:
     """Create a backup of the old requirements using uv or pyenv fallback."""
@@ -538,8 +566,7 @@ def _update_dependencies_file(
 
 
 def _update_python_classifiers(
-
-    path: str, target_py: str, dry_run: bool = False
+    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
 ) -> list[str]:
     """Clean up and bump Python classifiers in config files."""
     updated_files = []
@@ -547,7 +574,7 @@ def _update_python_classifiers(
 
     for filename in ["pyproject.toml", "setup.cfg", "setup.py"]:
         fpath = os.path.join(path, filename)
-        if not os.path.exists(fpath):
+        if not os.path.exists(fpath) or not _should_modify(fpath, only):
             continue
 
         with open(fpath, encoding="utf-8") as f:
@@ -594,14 +621,16 @@ def _update_python_classifiers(
     return updated_files
 
 
-def _update_dockerfiles(path: str, target_py: str, dry_run: bool = False) -> list[str]:
+def _update_dockerfiles(
+    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
+) -> list[str]:
     """Update Python versions in Dockerfiles."""
     updated_files = []
 
     for filename in os.listdir(path):
         if filename.startswith("Dockerfile"):
             fpath = os.path.join(path, filename)
-            if not os.path.isfile(fpath):
+            if not os.path.isfile(fpath) or not _should_modify(fpath, only):
                 continue
 
             with open(fpath, encoding="utf-8") as f:
@@ -624,14 +653,13 @@ def _update_dockerfiles(path: str, target_py: str, dry_run: bool = False) -> lis
 
 
 def _update_ci_cd_environments(
-
-    path: str, target_py: str, dry_run: bool = False
+    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
 ) -> list[str]:
     """Update Python version matrices in CI/CD files."""
     updated_files = []
 
     tox_path = os.path.join(path, "tox.ini")
-    if os.path.exists(tox_path):
+    if os.path.exists(tox_path) and _should_modify(tox_path, only):
         with open(tox_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -677,11 +705,14 @@ def _update_ci_cd_environments(
 
     gh_dir = os.path.join(path, ".github", "workflows")
     if os.path.exists(gh_dir) and os.path.isdir(gh_dir):
-        for f in os.listdir(gh_dir):
-            if f.endswith(".yml") or f.endswith(".yaml"):
-                ci_files.append(os.path.join(gh_dir, f))
+        for filename in os.listdir(gh_dir):
+            if filename.endswith(".yml") or filename.endswith(".yaml"):
+                ci_files.append(os.path.join(gh_dir, filename))
 
     for ci_file in ci_files:
+        if not _should_modify(ci_file, only):
+            continue
+
         with open(ci_file, encoding="utf-8") as f:
             content = f.read()
 
@@ -698,12 +729,12 @@ def _update_ci_cd_environments(
         keys_pattern = r"python-version|UV_PYTHON|python|python_versions"
         new_content = re.sub(
             rf'({keys_pattern})\s*:\s*\n([ \t]*-\s*[\'"]?)3\.\d+([\'"]?(?:\s*\n|$))(?:[ \t]*-\s*[\'"]?3\.\d+[\'"]?(?:\s*\n|$))*',
-            rf'\g<1>:\n\g<2>{target_py}\g<3>',
+            rf"\g<1>:\n\g<2>{target_py}\g<3>",
             new_content,
         )
         new_content = re.sub(
             rf'({keys_pattern})\s*:\s*\|\s*\n(?:[ \t]+[\'"]?3\.\d+[\'"]?\s*\n)*([ \t]+[\'"]?)3\.\d+([\'"]?(?:\s*\n|$))',
-            rf'\g<1>: |\n\g<2>{target_py}\g<3>',
+            rf"\g<1>: |\n\g<2>{target_py}\g<3>",
             new_content,
         )
 
@@ -714,7 +745,9 @@ def _update_ci_cd_environments(
             updated_files.append(ci_file)
 
     python_version_file = os.path.join(path, ".python-version")
-    if os.path.exists(python_version_file):
+    if os.path.exists(python_version_file) and _should_modify(
+        python_version_file, only
+    ):
         with open(python_version_file, encoding="utf-8") as f:
             content = f.read()
 
@@ -726,100 +759,6 @@ def _update_ci_cd_environments(
             updated_files.append(python_version_file)
 
     return updated_files
-
-
-def audit_project(path: str, show_diff: bool = False) -> None:
-    """
-    Audit a Python project at the given path.
-
-    Args:
-        path: The path to the project directory.
-        show_diff: Output unified diffs of proposed syntax changes.
-    """
-    print(f"Auditing project at {path}")
-    current_ver = _get_current_python_version(path)
-    target_files = _get_target_files(path)
-
-    print(f"Current Python version: {current_ver}")
-    target_py, resolved_deps = _find_target_python(target_files, current_ver)
-
-    if target_py != current_ver:
-        print(f"Target Python version: {target_py}")
-        parts = current_ver.split(".")
-        if len(parts) >= 2:
-            backup_name = f"requirements-{parts[0]}-{parts[1]}.txt"
-        else:
-            backup_name = f"requirements-{current_ver}.txt"
-        if target_files:
-            print(f"\nWould backup old requirements to {backup_name}")
-    else:
-        print("No higher Python version is compatible.")
-
-    py_ver_tuple = tuple(map(int, target_py.split(".")))
-
-    py_files = _get_py_files(path)
-    files_to_upgrade = []
-    diffs_to_print = []
-    for file_path in py_files:
-        try:
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read()
-            new_content = _check_pyupgrade(content, py_ver_tuple)  # type: ignore
-            if new_content != content:
-                files_to_upgrade.append(file_path)
-                if show_diff:
-                    diff = list(
-                        difflib.unified_diff(
-                            content.splitlines(keepends=True),
-                            new_content.splitlines(keepends=True),
-                            fromfile=f"a/{os.path.relpath(file_path, path)}",
-                            tofile=f"b/{os.path.relpath(file_path, path)}",
-                        )
-                    )
-                    diffs_to_print.extend(diff)
-        except Exception as e:
-            print(f"Error reading {file_path}: {e}", file=sys.stderr)
-
-    if files_to_upgrade:
-        print("\nFiles that would be upgraded:")
-        for f in files_to_upgrade:
-            print(f"  - {f}")
-        if show_diff and diffs_to_print:
-            print("\nProposed syntax changes:")
-            sys.stdout.writelines(diffs_to_print)
-    else:
-        print("\nNo Python files need upgrading.")
-
-    for fpath in target_files:
-        if os.path.exists(fpath):
-            print(f"\nChecking dependencies in {os.path.basename(fpath)}...")
-            updates = _update_dependencies_file(fpath, resolved_deps, dry_run=True)
-            if updates:
-                print("Dependencies that would be bumped:")
-                for pkg, diff in updates.items():
-                    print(f"  - {pkg}: {diff}")
-            else:
-                print("No dependencies need bumping.")
-
-    if target_py != current_ver:
-        print("\nPython version bounds would be updated.")
-        ci_files = _update_ci_cd_environments(path, target_py, dry_run=True)
-        if ci_files:
-            print("\nCI/CD environments that would be updated:")
-            for f in ci_files:
-                print(f"  - {os.path.relpath(f, path)}")
-
-        cls_files = _update_python_classifiers(path, target_py, dry_run=True)
-        if cls_files:
-            print("\nPython classifiers that would be updated:")
-            for f in cls_files:
-                print(f"  - {os.path.relpath(f, path)}")
-
-        docker_files = _update_dockerfiles(path, target_py, dry_run=True)
-        if docker_files:
-            print("\nDockerfiles that would be updated:")
-            for f in docker_files:
-                print(f"  - {os.path.relpath(f, path)}")
 
 
 def _run_tests(path: str) -> bool:
@@ -836,27 +775,19 @@ def _run_tests(path: str) -> bool:
     nox_path = os.path.join(path, "noxfile.py")
 
     if os.path.exists(tox_path):
-        print("Running tests with tox...")
         cmd = ["tox"]
     elif os.path.exists(nox_path):
-        print("Running tests with nox...")
         cmd = ["nox"]
     else:
-        print("Running tests with pytest...")
         cmd = ["pytest"]
 
     try:
         subprocess.run(cmd, cwd=path, check=True)
-        print("Tests passed successfully.")
+
         return True
     except subprocess.CalledProcessError:
-        print("Tests failed after upgrade.", file=sys.stderr)
         return False
     except FileNotFoundError:
-        print(
-            f"Test runner ({cmd[0]}) not found. Please install it or run tests manually.",
-            file=sys.stderr,
-        )
         return False
 
 
@@ -877,14 +808,11 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
     if not versioned:
         venv_path = os.path.join(path, ".venv")
         if not os.path.exists(venv_path):
-            print("No .venv found. Skipping virtual environment recreation.")
             return False
 
-        print(f"\nRecreating virtual environment at .venv with Python {target_py}...")
         try:
             shutil.rmtree(venv_path)
         except Exception as e:
-            print(f"Failed to remove existing .venv: {e}", file=sys.stderr)
             return False
 
     version_suffix = target_py.replace(".", "-")
@@ -898,14 +826,12 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
             try:
                 shutil.rmtree(venv_path_uv)
             except Exception as e:
-                print(f"Failed to remove existing {venv_dir_uv}: {e}", file=sys.stderr)
                 return False
-        print(f"\nCreating versioned virtual environment at {venv_dir_uv} with Python {target_py}...")
 
     cmd_uv = ["uv", "venv", venv_dir_uv, "--python", target_py]
     try:
         subprocess.run(cmd_uv, cwd=path, capture_output=True, text=True, check=True)
-        print(f"Successfully created {venv_dir_uv} using uv.")
+
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
@@ -919,9 +845,7 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
             try:
                 shutil.rmtree(venv_path_pyenv)
             except Exception as e:
-                print(f"Failed to remove existing {venv_dir_pyenv}: {e}", file=sys.stderr)
                 return False
-        print(f"\nCreating versioned virtual environment at {venv_dir_pyenv} with Python {target_py}...")
 
     env = os.environ.copy()
     env["PYENV_VERSION"] = target_py
@@ -930,219 +854,20 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
         subprocess.run(
             cmd_pyenv, env=env, cwd=path, capture_output=True, text=True, check=True
         )
-        print(f"Successfully created {venv_dir_pyenv} using pyenv/python3.")
+
         return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Failed to create {venv_dir_pyenv} using pyenv: {e}", file=sys.stderr)
         return False
 
-def fix_project(
-    path: str,
-    run_tests: bool = False,
-    interactive: bool = False,
-    commit: bool = False,
-    recreate_venv: bool = False,
-    versioned_venv: bool = False,
-) -> None:
-    """
-    Fix and upgrade a Python project at the given path.
 
-    Args:
-        path: The path to the project directory.
-        run_tests: Whether to run the test suite after upgrading.
-        interactive: Whether to prompt before applying changes.
-        commit: Automatically commit the applied changes.
-        recreate_venv: Destroy and rebuild local .venv using the new target version.
-        versioned_venv: Create a versioned virtual environment (e.g. .venv-uv-3-12).
-    """
-    print(f"Fixing project at {path}")
-    current_ver = _get_current_python_version(path)
-    target_files = _get_target_files(path)
-
-    target_py, resolved_deps = _find_target_python(target_files, current_ver)
-    py_ver_tuple = tuple(map(int, target_py.split(".")))
-
-    b_path = None
-    if target_py != current_ver and target_files:
-        b_path = _backup_old_requirements(path, current_ver, target_files)
-        print(f"Backed up old requirements to {os.path.basename(b_path)}")
-
-    py_files = _get_py_files(path)
-    files_upgraded = 0
-    for file_path in py_files:
-        try:
-            with open(file_path, encoding="utf-8") as f:
-                content_f = f.read()
-            new_content = _check_pyupgrade(content_f, py_ver_tuple)  # type: ignore
-            if new_content != content_f:
-                if interactive:
-                    if not _prompt_diff(file_path, content_f, new_content):
-                        continue
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-                files_upgraded += 1
-                print(f"Upgraded {file_path}")
-        except Exception as e:
-            print(f"Error processing {file_path}: {e}", file=sys.stderr)
-
-    if files_upgraded == 0:
-        print("No Python files were upgraded.")
-    else:
-        print(f"\nUpgraded {files_upgraded} Python files.")
-
-    any_deps_bumped = False
-    for fpath in target_files:
-        if os.path.exists(fpath):
-            print(f"\nUpdating dependencies in {os.path.basename(fpath)}...")
-            updates = _update_dependencies_file(
-                fpath, resolved_deps, dry_run=False, interactive=interactive
-            )
-            if updates:
-                any_deps_bumped = True
-                print("Bumped dependencies:")
-                for pkg, diff in updates.items():
-                    print(f"  - {pkg}: {diff}")
-            else:
-                print("No dependencies bumped.")
-
-    ci_files = []
-    cls_files = []
-    docker_files = []
-    if target_py != current_ver and _update_python_version_bounds(
-        path, target_py, dry_run=False
-    ):
-        print(f"Updated Python version bounds to >= {target_py}")
-        ci_files = _update_ci_cd_environments(path, target_py, dry_run=False)
-        if ci_files:
-            print("\nUpdated CI/CD environments:")
-            for f in ci_files:
-                print(f"  - {os.path.relpath(f, path)}")
-
-        cls_files = _update_python_classifiers(path, target_py, dry_run=False)
-        if cls_files:
-            print("\nUpdated Python classifiers:")
-            for f in cls_files:
-                print(f"  - {os.path.relpath(f, path)}")
-
-        docker_files = _update_dockerfiles(path, target_py, dry_run=False)
-        if docker_files:
-            print("\nUpdated Dockerfiles:")
-            for f in docker_files:
-                print(f"  - {os.path.relpath(f, path)}")
-
-    if recreate_venv or versioned_venv:
-        _recreate_venv(path, target_py, versioned=versioned_venv)
-
-    if run_tests:
-        print("\nVerifying upgrades by running tests...")
-        _run_tests(path)
-
-    if commit:
-        print("\nCommitting changes...")
-        msg_title = f"Upgrade project to Python {target_py}"
-        details = []
-        if target_py != current_ver:
-            extra = []
-            if docker_files:
-                extra.append("Docker")
-            if ci_files:
-                extra.append("GitHub Actions")
-            extra_str = f"; also in {' and '.join(extra)}" if extra else ""
-            details.append(
-                f"- Added support for Python versions: {target_py}{extra_str}"
-            )
-        if files_upgraded > 0:
-            details.append(f"- Upgraded syntax in {files_upgraded} files")
-        if any_deps_bumped:
-            details.append("- Bumped dependency versions")
-
-        msg = msg_title
-        if details:
-            msg += "\n\n" + "\n".join(details)
-
-        try:
-            if b_path and os.path.exists(b_path):
-                subprocess.run(
-                    ["git", "add", os.path.basename(b_path)],
-                    cwd=path,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-            res = subprocess.run(
-                ["git", "commit", "-a", "-m", msg],
-                cwd=path,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if res.returncode == 0:
-                print("Successfully committed changes.")
-            elif (
-                "nothing to commit" in res.stdout.lower()
-                or "nothing to commit" in res.stderr.lower()
-            ):
-                print("No changes to commit.")
-            else:
-                err_msg = res.stderr or res.stdout
-                print(f"Failed to commit changes: {err_msg}", file=sys.stderr)
-        except FileNotFoundError:
-            print("Git not found. Skipping commit.", file=sys.stderr)
-
-
-def revert_project(path: str) -> None:
-    """
-    Revert the project to its previous state.
-
-    Args:
-        path: The path to the project directory.
-    """
-    import shutil
-
-    print(f"Reverting project at {path}")
-
-    try:
-        res = subprocess.run(
-            ["git", "restore", "."],
-            cwd=path,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if res.returncode == 0:
-            print("Reverted file modifications via git.")
-        else:
-            print(f"Git restore failed: {res.stderr}", file=sys.stderr)
-    except FileNotFoundError:
-        print("Git not found. Cannot automatically revert files.", file=sys.stderr)
-
-    backups = []
-    if os.path.exists(path):
-        for f in os.listdir(path):
-            if re.match(r"^requirements-\d+(-\d+)?\.txt$", f):
-                backups.append(f)
-
-    if backups:
-        backups.sort(
-            key=lambda x: os.path.getmtime(os.path.join(path, x)), reverse=True
-        )
-        latest_backup = backups[0]
-        backup_path = os.path.join(path, latest_backup)
-        req_path = os.path.join(path, "requirements.txt")
-        try:
-            shutil.copy2(backup_path, req_path)
-            print(f"Restored dependencies from {latest_backup}")
-        except Exception as e:
-            print(f"Failed to restore backup {latest_backup}: {e}", file=sys.stderr)
-    else:
-        print("No dependency backups found.")
-
-def _run_test_env(path: str, backend: str, v: str, uses_pytest: bool) -> tuple[str, bool, str]:
+def _run_test_env(
+    path: str, backend: str, v: str, uses_pytest: bool
+) -> tuple[str, bool, str]:
     """Helper."""
-    import shutil
-    import sys
     import os
+    import shutil
     import subprocess
+
     env_name = f"{backend}-{v}"
     output_lines = [f"\n--- Testing environment: {env_name} ---"]
     venv_dir = f".venv-{backend}-{v.replace('.', '-')}"
@@ -1169,7 +894,9 @@ def _run_test_env(path: str, backend: str, v: str, uses_pytest: bool) -> tuple[s
         env["PYENV_VERSION"] = v
         cmd_pyenv = ["python3", "-m", "venv", venv_dir]
         try:
-            subprocess.run(cmd_pyenv, env=env, cwd=path, capture_output=True, text=True, check=True)
+            subprocess.run(
+                cmd_pyenv, env=env, cwd=path, capture_output=True, text=True, check=True
+            )
             success = True
         except (subprocess.CalledProcessError, FileNotFoundError):
             output_lines.append(f"Backend pyenv not available or failed for {v}.")
@@ -1182,34 +909,75 @@ def _run_test_env(path: str, backend: str, v: str, uses_pytest: bool) -> tuple[s
     pip_bin = os.path.join(venv_path, "bin", "pip")
     pytest_bin = os.path.join(venv_path, "bin", "pytest")
 
+    from typing import Any
+
     if backend == "uv":
-        env_kwargs = {"env": {"VIRTUAL_ENV": venv_path}}
+        env_kwargs: dict[str, Any] = {"env": {"VIRTUAL_ENV": venv_path}}
     else:
         env_kwargs = {}
 
     try:
         if uses_pytest:
-            cmd_install_pytest = ["uv", "pip", "install", "pytest"] if backend == "uv" else [pip_bin, "install", "pytest"]
-            subprocess.run(cmd_install_pytest, cwd=path, capture_output=True, text=True, check=True, **env_kwargs)
+            cmd_install_pytest = (
+                ["uv", "pip", "install", "pytest"]
+                if backend == "uv"
+                else [pip_bin, "install", "pytest"]
+            )
+            subprocess.run(
+                cmd_install_pytest,
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=True,
+                **env_kwargs,
+            )
         if os.path.exists(os.path.join(path, "requirements.txt")):
             if backend == "uv":
-                subprocess.run(["uv", "pip", "install", "-r", "requirements.txt"], cwd=path, capture_output=True, text=True, check=True, **env_kwargs)
+                subprocess.run(
+                    ["uv", "pip", "install", "-r", "requirements.txt"],
+                    cwd=path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    **env_kwargs,
+                )
             else:
-                subprocess.run([pip_bin, "install", "-r", "requirements.txt"], cwd=path, capture_output=True, text=True, check=True)
+                subprocess.run(
+                    [pip_bin, "install", "-r", "requirements.txt"],
+                    cwd=path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
 
         # Install current project if pyproject.toml exists
-        if os.path.exists(os.path.join(path, "pyproject.toml")) or os.path.exists(os.path.join(path, "setup.py")):
+        if os.path.exists(os.path.join(path, "pyproject.toml")) or os.path.exists(
+            os.path.join(path, "setup.py")
+        ):
             if backend == "uv":
-                subprocess.run(["uv", "pip", "install", "-e", "."], cwd=path, capture_output=True, text=True, check=True, **env_kwargs)
+                subprocess.run(
+                    ["uv", "pip", "install", "-e", "."],
+                    cwd=path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    **env_kwargs,
+                )
             else:
-                subprocess.run([pip_bin, "install", "-e", "."], cwd=path, capture_output=True, text=True, check=True)
+                subprocess.run(
+                    [pip_bin, "install", "-e", "."],
+                    cwd=path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
 
         if uses_pytest:
             cmd_test = [pytest_bin]
         else:
             python_bin = os.path.join(venv_path, "bin", "python3")
             cmd_test = [python_bin, "-m", "unittest", "discover"]
-        
+
         res = subprocess.run(cmd_test, cwd=path, capture_output=True, text=True)
         if res.returncode == 0:
             output_lines.append(f"[{env_name}] PASSED")
@@ -1221,64 +989,3 @@ def _run_test_env(path: str, backend: str, v: str, uses_pytest: bool) -> tuple[s
     except Exception as e:
         output_lines.append(f"[{env_name}] ERROR: {e}")
         return env_name, False, "\n".join(output_lines)
-
-def test_matrix(path: str, parallel: bool = True) -> bool:
-    """
-    Test the project against a matrix of Python versions using uv and pyenv.
-
-    Args:
-        path: The path to the project directory.
-    """
-    import shutil
-    print(f"Running tox-style test matrix for project at {path}")
-    current_ver = _get_current_python_version(path)
-    target_files = _get_target_files(path)
-    target_py, _ = _find_target_python(target_files, current_ver)
-
-    all_versions = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-    try:
-        c_parts = tuple(map(int, current_ver.split(".")))
-        versions = [v for v in all_versions if c_parts <= tuple(map(int, v.split(".")))]
-    except Exception:
-        versions = all_versions
-
-    uses_pytest = False
-    if os.path.exists(os.path.join(path, "pytest.ini")) or os.path.exists(os.path.join(path, "conftest.py")):
-        uses_pytest = True
-    elif os.path.exists(os.path.join(path, "pyproject.toml")):
-        with open(os.path.join(path, "pyproject.toml"), encoding="utf-8") as f:
-            if "pytest" in f.read():
-                uses_pytest = True
-    elif os.path.exists(os.path.join(path, "requirements-dev.txt")):
-        with open(os.path.join(path, "requirements-dev.txt"), encoding="utf-8") as f:
-            if "pytest" in f.read():
-                uses_pytest = True
-
-    backends = ["uv", "pyenv"]
-    results = {}
-
-    tasks = [(path, backend, v, uses_pytest) for v in versions for backend in backends]
-
-    if parallel:
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(_run_test_env, *task) for task in tasks]
-            for future in concurrent.futures.as_completed(futures):
-                env_name, passed, out = future.result()
-                print(out)
-                results[env_name] = passed
-    else:
-        for task in tasks:
-            env_name, passed, out = _run_test_env(*task)
-            print(out)
-            results[env_name] = passed
-
-    print("\n--- Matrix Summary ---")
-    all_passed = True
-    for env_name, passed in results.items():
-        status = "PASSED" if passed else "FAILED"
-        print(f"{env_name}: {status}")
-        if not passed:
-            all_passed = False
-
-    return all_passed

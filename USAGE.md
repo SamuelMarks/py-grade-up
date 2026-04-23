@@ -5,7 +5,7 @@
 1. `uv` installed in the current environment (`pip install uv`).
 2. A valid target Python project directory containing dependency files (e.g., `requirements.txt`, `pyproject.toml`, etc.).
 
-The tool features six subcommands: `audit`, `fix`, `revert`, `security`, `test`, and `graph`.
+The tool features six subcommands: `audit`, `fix`, `revert`, `security`, `test`, and `graph`, as well as orthogonal integration scripts.
 
 ---
 
@@ -182,3 +182,30 @@ dependencies = [
 - `Pipfile` & `Pipfile.lock`
 - Lock files (`poetry.lock`, `pdm.lock`, `uv.lock`)
 - Conda Environments (`environment.yml`, `environment.yaml`)
+
+---
+
+## Integration Pipelines
+
+`py-gradeup` includes integration pipelines designed to confirm that modernized code can be successfully containerized. These orthogonal scripts bridge the application-layer upgrades of `py-gradeup` with the infrastructure scaffolding capabilities of neighboring tools like `mkconf`.
+
+### Running the Pipeline
+
+You can run the integration pipeline against a target Python project using the provided shell or batch scripts:
+
+**Linux / macOS:**
+```bash
+./scripts/pipeline.sh /path/to/target_project
+```
+
+**Windows:**
+```cmd
+scripts\pipeline.bat C:\path\to\target_project
+```
+
+### Pipeline Workflow
+
+The pipeline executes the following sequence:
+1. **Modernization:** Invokes `py-gradeup fix` on the target directory to upgrade syntax and dependency constraints.
+2. **Scaffolding:** Locates the `mkconf` binary (assumed to be in a neighboring directory `../mkconf`) and runs it against the updated target project to generate fresh `Dockerfile`s and Makefiles.
+3. **Verification:** Validates the entire modernization process by immediately running `docker build` against the scaffolded environment (preferring `debian.Dockerfile` if available). This confirms the upgraded application successfully boots in a containerized environment.
