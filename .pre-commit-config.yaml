@@ -1,21 +1,29 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.1
-    hooks:
-      - id: ruff
-        args: [ --fix ]
-      - id: ruff-format
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy
-        entry: mypy src/ tests/
+      - id: ruff
+        name: ruff
+        entry: python3 -m ruff check .
         language: system
-        types: [python]
+        pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: python3 -m pytest
+        language: system
+        pass_filenames: false
+      - id: interrogate
+        name: interrogate
+        entry: python3 -m interrogate -c pyproject.toml
+        language: system
         pass_filenames: false
       - id: build
         name: build
-        entry: python -m build
+        entry: python3 -m build
+        language: system
+        pass_filenames: false
+      - id: mypy
+        name: mypy
+        entry: python3 -m mypy src/ tests/
         language: system
         pass_filenames: false
       - id: test-and-shields

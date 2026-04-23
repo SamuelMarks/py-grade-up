@@ -5,6 +5,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from py_gradeup.cli import main
 
 
@@ -107,6 +108,7 @@ def test_fix_command_commit(mock_fix, capsys) -> None:
 
 @patch("py_gradeup.cli.PyGradeup.revert")
 def test_revert_command(mock_revert, capsys) -> None:
+    """Test the revert command."""
     mock_revert.return_value = MagicMock(
         git_restored=False, git_error="err", dependencies_restored_from=None
     )

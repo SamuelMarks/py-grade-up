@@ -1192,6 +1192,7 @@ def test_test_matrix_no_parallel(
 
 
 def test_should_modify() -> None:
+    """Test should modify."""
     from py_gradeup.core import _should_modify
 
     assert _should_modify("file.py", None) is True
@@ -1212,13 +1213,15 @@ def test_should_modify() -> None:
     assert _should_modify("file.py", ["toml", "python"]) is True
 
 
-def test_should_modify_coverage() -> None:
+def test_should_modify_coverage():
+    """Test should_modify coverage cases."""
     from py_gradeup.core import _should_modify
 
     assert _should_modify("test.py", ["xyz"]) is False
 
 
 def test_only_filters() -> None:
+    """Test the only filters."""
     import os
     import tempfile
 
