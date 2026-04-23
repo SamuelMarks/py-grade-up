@@ -15,7 +15,7 @@ def test_revert_project_git_success(mock_run, tmp_path, capsys) -> None:
     mock_run.return_value = mock_res
 
     res = PyGradeup(str(tmp_path)).revert()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert res.git_restored is True
 
 
@@ -28,7 +28,7 @@ def test_revert_project_git_fail(mock_run, tmp_path, capsys) -> None:
     mock_run.return_value = mock_res
 
     res = PyGradeup(str(tmp_path)).revert()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert str(res.git_error) == "error"
 
 
@@ -38,7 +38,7 @@ def test_revert_project_git_not_found(mock_run, tmp_path, capsys) -> None:
     mock_run.side_effect = FileNotFoundError()
 
     res = PyGradeup(str(tmp_path)).revert()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert "Git not found" in str(res.git_error)
 
 
@@ -55,7 +55,7 @@ def test_revert_project_restore_backup(mock_run, tmp_path, capsys) -> None:
     req.write_text("new")
 
     res = PyGradeup(str(tmp_path)).revert()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert res.dependencies_restored_from == "requirements-3-8.txt"
     assert req.read_text() == "backup"
 
@@ -76,7 +76,7 @@ def test_revert_project_restore_backup_error(
     req_bak.write_text("backup")
 
     res = PyGradeup(str(tmp_path)).revert()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert res.dependencies_restored_from is None
 
 
@@ -88,5 +88,5 @@ def test_revert_project_no_backups(mock_run, tmp_path, capsys) -> None:
     mock_run.return_value = mock_res
 
     res = PyGradeup(str(tmp_path)).revert()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert res.dependencies_restored_from is None

@@ -3,13 +3,8 @@
 
 from __future__ import annotations
 
-import contextlib
-import os
 import re
-import subprocess
 import tempfile
-
-from py_gradeup.core import _get_target_files
 
 
 def _prepare_compile_targets(

@@ -5,3 +5,21 @@ repos:
       - id: ruff
         args: [ --fix ]
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy src/ tests/
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: build
+        name: build
+        entry: python -m build
+        language: system
+        pass_filenames: false
+      - id: test-and-shields
+        name: test-and-shields
+        entry: bash scripts/update_shields.sh
+        language: system
+        pass_filenames: false

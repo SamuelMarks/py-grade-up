@@ -2,15 +2,15 @@
 
 __version__ = "0.1.0"
 
-from .sdk import PyGradeup
 from .models import (
     AuditResult,
     FixResult,
-    RevertResult,
-    TestResult,
-    SecurityResult,
     GraphResult,
+    RevertResult,
+    SecurityResult,
+    TestResult,
 )
+from .sdk import PyGradeup
 
 __all__ = [
     "PyGradeup",

@@ -29,8 +29,7 @@ def test_visualize_graph_no_files(mock_get, capsys, tmp_path) -> None:
     """Test."""
     mock_get.return_value = []
     res = PyGradeup(str(tmp_path)).graph()
-    captured_out = str(res.tree) or str(res.conflict_error) or ""
-    assert str(res.tree) is None and str(res.conflict_error) is None
+    assert res.tree is None and res.conflict_error is None
 
 
 @patch("py_gradeup.sdk._get_target_files")
@@ -40,8 +39,7 @@ def test_visualize_graph_no_targets(mock_prep, mock_get, capsys, tmp_path) -> No
     mock_get.return_value = ["fake.txt"]
     mock_prep.return_value = []
     res = PyGradeup(str(tmp_path)).graph()
-    captured_out = str(res.tree) or str(res.conflict_error) or ""
-    assert str(res.tree) is None
+    assert res.tree is None
 
 
 @patch("py_gradeup.sdk._get_target_files")
@@ -55,9 +53,6 @@ def test_visualize_graph_success(mock_run, mock_get, capsys, tmp_path) -> None:
     mock_run.return_value = MagicMock(stdout="Fake Tree Output", stderr="")
 
     res = PyGradeup(str(tmp_path)).graph()
-    captured_out = str(res.tree) or str(res.conflict_error) or ""
-
-    out = capsys.readouterr().out
 
     assert "Fake Tree Output" in str(res.tree)
 
@@ -75,9 +70,6 @@ def test_visualize_graph_conflict(mock_run, mock_get, capsys, tmp_path) -> None:
     )
 
     res = PyGradeup(str(tmp_path)).graph()
-    captured_out = str(res.tree) or str(res.conflict_error) or ""
-
-    out = capsys.readouterr().out
 
     assert "No solution found" in str(res.conflict_error)
 
@@ -95,9 +87,6 @@ def test_visualize_graph_other_error(mock_run, mock_get, capsys, tmp_path) -> No
     )
 
     res = PyGradeup(str(tmp_path)).graph()
-    captured_out = str(res.tree) or str(res.conflict_error) or ""
-
-    out = capsys.readouterr().out
 
     assert "random network error" in str(res.conflict_error)
 
@@ -160,5 +149,4 @@ def test_visualize_graph_remove_exception(
     mock_get.return_value = [str(f)]
     mock_run.return_value = MagicMock(stdout="Fake Tree Output", stderr="")
     mock_remove.side_effect = Exception("Remove error")
-    res = PyGradeup(str(tmp_path)).graph()
-    captured_out = str(res.tree) or str(res.conflict_error) or ""
+    PyGradeup(str(tmp_path)).graph()

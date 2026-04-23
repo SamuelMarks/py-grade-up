@@ -9,8 +9,6 @@ import re
 import urllib.error
 import urllib.request
 
-from py_gradeup.core import _get_target_files
-
 
 def _parse_dependencies(file_path: str) -> dict[str, str]:
     """Parse dependencies and their versions from a file."""

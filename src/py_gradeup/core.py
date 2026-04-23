@@ -812,7 +812,7 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
 
         try:
             shutil.rmtree(venv_path)
-        except Exception as e:
+        except Exception:
             return False
 
     version_suffix = target_py.replace(".", "-")
@@ -825,7 +825,7 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
         if os.path.exists(venv_path_uv):
             try:
                 shutil.rmtree(venv_path_uv)
-            except Exception as e:
+            except Exception:
                 return False
 
     cmd_uv = ["uv", "venv", venv_dir_uv, "--python", target_py]
@@ -844,7 +844,7 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
         if os.path.exists(venv_path_pyenv):
             try:
                 shutil.rmtree(venv_path_pyenv)
-            except Exception as e:
+            except Exception:
                 return False
 
     env = os.environ.copy()
@@ -856,7 +856,7 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
         )
 
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 

@@ -5,11 +5,11 @@ import json
 import urllib.error
 from unittest.mock import MagicMock, patch
 
+from py_gradeup.sdk import PyGradeup
 from py_gradeup.security import (
     _parse_dependencies,
     check_vulnerabilities,
 )
-from py_gradeup.sdk import PyGradeup
 
 
 def test_parse_dependencies(tmp_path) -> None:

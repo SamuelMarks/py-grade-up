@@ -7,7 +7,6 @@ import os
 import subprocess
 from unittest.mock import MagicMock, patch
 
-from py_gradeup.sdk import PyGradeup
 from py_gradeup.core import (
     _backup_old_requirements,
     _check_pyupgrade,
@@ -21,6 +20,7 @@ from py_gradeup.core import (
     _update_python_classifiers,
     _update_python_version_bounds,
 )
+from py_gradeup.sdk import PyGradeup
 
 
 def test_get_py_files(tmp_path) -> None:
@@ -532,7 +532,7 @@ def test_sdk_audit(
     # Test error reading
     mock_check.side_effect = Exception("Read error")
     PyGradeup(str(tmp_path)).audit()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert len(res.files_to_upgrade) == 1
 
     # Test no upgrades
@@ -541,7 +541,7 @@ def test_sdk_audit(
     mock_update.return_value = {}
     mock_find.return_value = ("3.8", {})
     PyGradeup(str(tmp_path)).audit()
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert len(res.files_to_upgrade) == 1
     assert len(res.dependency_updates) == 2
 
@@ -550,7 +550,7 @@ def test_sdk_audit(
     mock_find.return_value = ("4", {})
     with patch("py_gradeup.sdk._get_current_python_version", return_value="3"):
         PyGradeup(str(tmp_path)).audit()
-        captured = capsys.readouterr()
+        capsys.readouterr()
         assert PyGradeup(str(tmp_path)).audit().target_version == "4"
         assert PyGradeup(str(tmp_path)).audit().backup_name == "requirements-3.txt"
 
@@ -617,7 +617,7 @@ def test_sdk_fix(
     # Test error processing
     mock_check.side_effect = Exception("Process error")
     # removed
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert len(res.files_upgraded) == 1
 
     # Test no upgrades
@@ -628,7 +628,7 @@ def test_sdk_fix(
     mock_upd_py.return_value = False
 
     # removed
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert len(res.files_upgraded) == 1
     assert len(res.dependency_updates) == 2
 
@@ -789,7 +789,7 @@ def test_sdk_fix_commit(
         req_file.write_text("pkg==1.0")
         PyGradeup(str(tmp_path)).fix(commit=True)
 
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert True
 
     # Verify git was called
@@ -816,7 +816,7 @@ def test_sdk_fix_commit(
         req_file = tmp_path / "req.txt"
         req_file.write_text("pkg==1.0")
         PyGradeup(str(tmp_path)).fix(commit=True)
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert True
 
     # Test error
@@ -828,7 +828,7 @@ def test_sdk_fix_commit(
         req_file = tmp_path / "req.txt"
         req_file.write_text("pkg==1.0")
         PyGradeup(str(tmp_path)).fix(commit=True)
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert True
 
     # Test exception FileNotFoundError
@@ -839,7 +839,7 @@ def test_sdk_fix_commit(
         req_file = tmp_path / "req.txt"
         req_file.write_text("pkg==1.0")
         PyGradeup(str(tmp_path)).fix(commit=True)
-    captured = capsys.readouterr()
+    capsys.readouterr()
     assert True
 
 
@@ -905,8 +905,6 @@ def test_recreate_venv_uv_fails_pyenv_fails(mock_run, mock_rmtree, tmp_path) -> 
 @patch("py_gradeup.sdk._recreate_venv")
 def test_sdk_fix_recreate_venv(mock_recreate_venv, tmp_path) -> None:
     """Test."""
-    import py_gradeup.core as core
-
     (tmp_path / "pyproject.toml").write_text('requires-python = ">=3.8"')
     (tmp_path / "f1.py").write_text("print('hello')")
     PyGradeup(str(tmp_path)).fix(recreate_venv=True)
@@ -916,8 +914,6 @@ def test_sdk_fix_recreate_venv(mock_recreate_venv, tmp_path) -> None:
 @patch("py_gradeup.sdk._recreate_venv")
 def test_sdk_fix_versioned_venv(mock_recreate_venv, tmp_path) -> None:
     """Test."""
-    import py_gradeup.core as core
-
     (tmp_path / "pyproject.toml").write_text('requires-python = ">=3.8"')
     (tmp_path / "f1.py").write_text("print('hello')")
     PyGradeup(str(tmp_path)).fix(versioned_venv=True)
@@ -987,9 +983,6 @@ def test_recreate_venv_versioned_rmtree_fails2(mock_run, mock_rmtree, tmp_path) 
 
 
 from unittest.mock import patch
-
-import py_gradeup.core as core
-from py_gradeup.cli import main
 
 
 @patch("py_gradeup.sdk._get_current_python_version")

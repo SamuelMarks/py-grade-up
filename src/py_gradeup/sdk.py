@@ -1,43 +1,64 @@
+"""SDK layer for programmable access to py-gradeup."""
+
 import difflib
 import os
 from typing import List, Optional
 
 from py_gradeup.core import (
-    _get_current_python_version,
-    _get_target_files,
-    _find_target_python,
-    _get_py_files,
-    _should_modify,
-    _check_pyupgrade,
-    _update_dependencies_file,
-    _update_ci_cd_environments,
-    _update_python_classifiers,
-    _update_dockerfiles,
-    _run_tests,
-    _recreate_venv,
     _backup_old_requirements,
+    _check_pyupgrade,
+    _find_target_python,
+    _get_current_python_version,
+    _get_py_files,
+    _get_target_files,
+    _recreate_venv,
     _run_test_env,
+    _run_tests,
+    _should_modify,
+    _update_ci_cd_environments,
+    _update_dependencies_file,
+    _update_dockerfiles,
+    _update_python_classifiers,
 )
-from py_gradeup.security import _parse_dependencies, check_vulnerabilities
 from py_gradeup.graph import _prepare_compile_targets
-
 from py_gradeup.models import (
     AuditResult,
     FixResult,
-    RevertResult,
-    TestResult,
-    SecurityResult,
     GraphResult,
+    RevertResult,
+    SecurityResult,
+    TestResult,
 )
+from py_gradeup.security import _parse_dependencies, check_vulnerabilities
 
 
 class PyGradeup:
+    """SDK for py-gradeup operations.
+
+    Provides programmable access to audit, fix, revert, test, security,
+    and graph functionalities.
+    """
+
     def __init__(self, path: str = "."):
+        """Initialize the PyGradeup SDK.
+
+        Args:
+            path: The root path of the project to operate on.
+        """
         self.path = os.path.abspath(path)
 
     def audit(
         self, show_diff: bool = False, only: Optional[List[str]] = None
     ) -> AuditResult:
+        """Perform an audit of the project to identify possible upgrades.
+
+        Args:
+            show_diff: If True, include diff strings for proposed file modifications.
+            only: A list of specific file or directory paths to restrict the audit to.
+
+        Returns:
+            An AuditResult object containing the findings of the audit.
+        """
         current_ver = _get_current_python_version(self.path)
         target_files = _get_target_files(self.path)
         target_py, resolved_deps = _find_target_python(target_files, current_ver)
@@ -51,7 +72,10 @@ class PyGradeup:
                 backup_name = f"requirements-{current_ver}.txt"
 
         parts_int = [int(x) for x in target_py.split(".")]
-        py_ver_tuple = (parts_int[0], parts_int[1])
+        if len(parts_int) >= 2:
+            py_ver_tuple = (parts_int[0], parts_int[1])
+        else:
+            py_ver_tuple = (parts_int[0], 0)  # pragma: no cover
         py_files = [f for f in _get_py_files(self.path) if _should_modify(f, only)]
 
         files_to_upgrade = []
@@ -118,13 +142,32 @@ class PyGradeup:
         versioned_venv: bool = False,
         only: Optional[List[str]] = None,
     ) -> FixResult:
+        """Apply identified upgrades to the project.
+
+        Args:
+            run_tests: If True, run the project's test suite after applying fixes.
+            interactive: If True, prompt for confirmation before making file
+                modifications.
+            commit: If True, commit the changes via git after a successful fix.
+            recreate_venv: If True, recreate the virtual environment using the
+                target Python version.
+            versioned_venv: If True, create a versioned virtual environment
+                (e.g. .venv-3.12).
+            only: A list of specific file or directory paths to restrict the fix to.
+
+        Returns:
+            A FixResult object containing the details of the changes applied.
+        """
         import subprocess
 
         current_ver = _get_current_python_version(self.path)
         target_files = _get_target_files(self.path)
         target_py, resolved_deps = _find_target_python(target_files, current_ver)
         parts_int = [int(x) for x in target_py.split(".")]
-        py_ver_tuple = (parts_int[0], parts_int[1])
+        if len(parts_int) >= 2:
+            py_ver_tuple = (parts_int[0], parts_int[1])
+        else:
+            py_ver_tuple = (parts_int[0], 0)  # pragma: no cover
 
         backup_path = None
         if target_py != current_ver and target_files:
@@ -140,9 +183,10 @@ class PyGradeup:
                     content_f = f.read()
                 new_content = _check_pyupgrade(content_f, py_ver_tuple)
                 if new_content != content_f:
-                    if interactive:
-                        if not _prompt_diff(file_path, content_f, new_content):
-                            continue
+                    if interactive and not _prompt_diff(
+                        file_path, content_f, new_content
+                    ):
+                        continue
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write(new_content)
                     files_upgraded.append(file_path)
@@ -239,9 +283,17 @@ class PyGradeup:
         )
 
     def revert(self) -> RevertResult:
-        import subprocess
-        import shutil
+        """Revert the project to its state before the last fix operation.
+
+        Restores tracked files via Git and attempts to restore dependencies
+        from the most recent backup.
+
+        Returns:
+            A RevertResult object containing the status of the operation.
+        """
         import re
+        import shutil
+        import subprocess
 
         git_restored = False
         git_error = None
@@ -287,6 +339,14 @@ class PyGradeup:
         )
 
     def test(self, parallel: bool = True) -> TestResult:
+        """Test the project against multiple Python environments.
+
+        Args:
+            parallel: If True, run tests concurrently across environments.
+
+        Returns:
+            A TestResult object with testing outcomes.
+        """
         current_ver = _get_current_python_version(self.path)
         target_files = _get_target_files(self.path)
         _, _ = _find_target_python(target_files, current_ver)
@@ -342,7 +402,7 @@ class PyGradeup:
                 outputs.append(out)
 
         all_passed = True
-        for env_name, passed in results.items():
+        for _env_name, passed in results.items():
             if not passed:
                 all_passed = False
 
@@ -351,6 +411,11 @@ class PyGradeup:
         )
 
     def security(self) -> SecurityResult:
+        """Audit project dependencies for known security vulnerabilities.
+
+        Returns:
+            A SecurityResult object with detected vulnerabilities.
+        """
         target_files = _get_target_files(self.path)
 
         all_deps = {}
@@ -374,9 +439,16 @@ class PyGradeup:
         )
 
     def graph(self) -> GraphResult:
+        """Generate a dependency tree of the project.
+
+        Attempts to resolve and output the dependency tree.
+
+        Returns:
+            A GraphResult object containing the tree or conflict errors.
+        """
+        import contextlib
         import subprocess
         import tempfile
-        import contextlib
 
         target_files = _get_target_files(self.path)
         if not target_files:

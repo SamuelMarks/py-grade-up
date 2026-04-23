@@ -2,10 +2,9 @@
 # ruff: noqa: D103, E501
 """Tests for the command-line interface."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from py_gradeup.cli import main
 
 
@@ -156,7 +155,7 @@ def test_graph_command(mock_graph, capsys) -> None:
     mock_graph.assert_called_once_with()
 
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 @patch("py_gradeup.cli.PyGradeup.test")
