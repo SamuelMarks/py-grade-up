@@ -42,7 +42,6 @@ else
     sed -i "s/!\[Test Coverage\](https:\/\/img.shields.io\/badge\/test%20coverage-.*-.*)/!\[Test Coverage\](https:\/\/img.shields.io\/badge\/test%20coverage-${TEST_COV}%25-${TEST_COLOR})/" README.md
 fi
 
-git add README.md
 
 if [ $DOC_EXIT -ne 0 ]; then
     echo "Interrogate failed! Doc coverage is below 100%."

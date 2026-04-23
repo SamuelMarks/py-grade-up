@@ -16,7 +16,7 @@ try:
         _fix_plugins,
         _fix_tokens,
     )
-except ImportError:  # pragma: no cover
+except ImportError:
     # fallback for tests if pyupgrade isn't fully available
     Settings = None
 
@@ -71,7 +71,7 @@ def _get_py_files(path: str) -> list[str]:
 
 def _check_pyupgrade(content: str, target_py_version: tuple[int, int]) -> str:
     """Run pyupgrade on the given content."""
-    if Settings is None:  # pragma: no cover
+    if Settings is None:
         return content
     settings = Settings(
         min_version=target_py_version,
@@ -160,107 +160,167 @@ def _should_modify(filepath: str, only_types: list[str] | None) -> bool:
 
 
 def _update_python_version_bounds(
-    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
+    path: str,
+    target_py: str,
+    dry_run: bool = False,
+    only: list[str] | None = None,
+    workspace: bool = False,
 ) -> bool:
     """Update requires-python in pyproject.toml, setup.cfg, and setup.py."""
+    import os
+    import re
+
     updated = False
 
-    pyproject_path = os.path.join(path, "pyproject.toml")
-    if os.path.exists(pyproject_path) and _should_modify(pyproject_path, only):
-        with open(pyproject_path, encoding="utf-8") as f:
-            content = f.read()
-        new_content, count = re.subn(
-            r'(requires-python\s*=\s*">=)(3\.\d+)(")',
-            rf"\g<1>{target_py}\g<3>",
-            content,
-        )
-        if count > 0 and new_content != content:
-            updated = True
-            if not dry_run:
-                with open(pyproject_path, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-
-    setup_cfg_path = os.path.join(path, "setup.cfg")
-    if os.path.exists(setup_cfg_path) and _should_modify(setup_cfg_path, only):
-        with open(setup_cfg_path, encoding="utf-8") as f:
-            content = f.read()
-        new_content, count = re.subn(
-            r"(python_requires\s*=\s*>=)(3\.\d+)", rf"\g<1>{target_py}", content
-        )
-        if count > 0 and new_content != content:
-            updated = True
-            if not dry_run:
-                with open(setup_cfg_path, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-
-    setup_py_path = os.path.join(path, "setup.py")
-    if os.path.exists(setup_py_path) and _should_modify(setup_py_path, only):
-        with open(setup_py_path, encoding="utf-8") as f:
-            content = f.read()
-        new_content, count = re.subn(
-            r'(python_requires\s*=\s*[\'"]>=)(3\.\d+)([\'"])',
-            rf"\g<1>{target_py}\g<3>",
-            content,
-        )
-        if count > 0 and new_content != content:
-            updated = True
-            if not dry_run:
-                with open(setup_py_path, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-
-    pipfile_path = os.path.join(path, "Pipfile")
-    if os.path.exists(pipfile_path) and _should_modify(pipfile_path, only):
-        with open(pipfile_path, encoding="utf-8") as f:
-            content = f.read()
-        new_content, count = re.subn(
-            r'(python_version\s*=\s*[\'"])(3\.\d+)([\'"])',
-            rf"\g<1>{target_py}\g<3>",
-            content,
-        )
-        if count > 0 and new_content != content:
-            updated = True
-            if not dry_run:
-                with open(pipfile_path, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-
-    for env_file in ["environment.yml", "environment.yaml"]:
-        env_path = os.path.join(path, env_file)
-        if os.path.exists(env_path) and _should_modify(env_path, only):
-            with open(env_path, encoding="utf-8") as f:
-                content = f.read()
+    def do_for_dir(p: str) -> None:
+        """Process directory."""
+        nonlocal updated
+        pyproject_path = os.path.join(p, "pyproject.toml")
+        if os.path.exists(pyproject_path) and _should_modify(pyproject_path, only):
+            with open(pyproject_path, encoding="utf-8") as f:
+                content_f = f.read()
             new_content, count = re.subn(
-                r"(-\s*python\s*[>=]=?\s*)(3\.\d+)", rf"\g<1>{target_py}", content
+                r'(requires-python\s*=\s*">=)(3\.\d+)(")',
+                rf"\g<1>{target_py}\g<3>",
+                content_f,
             )
-            if count > 0 and new_content != content:
+            if count > 0 and new_content != content_f:
                 updated = True
                 if not dry_run:
-                    with open(env_path, "w", encoding="utf-8") as f:
+                    with open(pyproject_path, "w", encoding="utf-8") as f:
                         f.write(new_content)
+
+        setup_cfg_path = os.path.join(p, "setup.cfg")
+        if os.path.exists(setup_cfg_path) and _should_modify(setup_cfg_path, only):
+            with open(setup_cfg_path, encoding="utf-8") as f:
+                content_f = f.read()
+            new_content, count = re.subn(
+                r"(python_requires\s*=\s*>=)(3\.\d+)", rf"\g<1>{target_py}", content_f
+            )
+            if count > 0 and new_content != content_f:
+                updated = True
+                if not dry_run:
+                    with open(setup_cfg_path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+
+        setup_py_path = os.path.join(p, "setup.py")
+        if os.path.exists(setup_py_path) and _should_modify(setup_py_path, only):
+            with open(setup_py_path, encoding="utf-8") as f:
+                content_f = f.read()
+            new_content, count = re.subn(
+                r'(python_requires\s*=\s*[\'"]>=)(3\.\d+)([\'"])',
+                rf"\g<1>{target_py}\g<3>",
+                content_f,
+            )
+            if count > 0 and new_content != content_f:
+                updated = True
+                if not dry_run:
+                    with open(setup_py_path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+
+        pipfile_path = os.path.join(p, "Pipfile")
+        if os.path.exists(pipfile_path) and _should_modify(pipfile_path, only):
+            with open(pipfile_path, encoding="utf-8") as f:
+                content_f = f.read()
+            new_content, count = re.subn(
+                r'(python_version\s*=\s*[\'"])(3\.\d+)([\'"])',
+                rf"\g<1>{target_py}\g<3>",
+                content_f,
+            )
+            if count > 0 and new_content != content_f:
+                updated = True
+                if not dry_run:
+                    with open(pipfile_path, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+
+        for env_file in ["environment.yml", "environment.yaml"]:
+            env_path = os.path.join(p, env_file)
+            if os.path.exists(env_path) and _should_modify(env_path, only):
+                with open(env_path, encoding="utf-8") as f:
+                    content_f = f.read()
+                new_content, count = re.subn(
+                    r"(-\s*python\s*[>=]=?\s*)(3\.\d+)", rf"\g<1>{target_py}", content_f
+                )
+                if count > 0 and new_content != content_f:
+                    updated = True
+                    if not dry_run:
+                        with open(env_path, "w", encoding="utf-8") as f:
+                            f.write(new_content)
+
+    if workspace:
+        for root, dirs, _files in os.walk(path):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d
+                not in ("venv", "env", "node_modules", "dist", "build", "__pycache__")
+            ]
+            do_for_dir(root)
+    else:
+        do_for_dir(path)
 
     return updated
 
 
-def _get_target_files(path: str) -> list[str]:
+def _get_target_files(path: str, workspace: bool = False) -> list[str]:
     """Find the target files for dependency resolution."""
     target_files = []
     if os.path.exists(path) and os.path.isdir(path):
-        for f in os.listdir(path):
-            if f in (
-                "pyproject.toml",
-                "setup.py",
-                "setup.cfg",
-                "poetry.lock",
-                "pdm.lock",
-                "uv.lock",
-                "Pipfile",
-                "Pipfile.lock",
-                "environment.yml",
-                "environment.yaml",
-            ):
-                target_files.append(os.path.join(path, f))
-            elif "requirements" in f and f.endswith(".txt"):
-                # Exclude backup files like requirements-3-8.txt
-                if not re.match(r"^requirements-\d+(-\d+)?\.txt$", f):
+        if workspace:
+            for root, dirs, files in os.walk(path):
+                dirs[:] = [
+                    d
+                    for d in dirs
+                    if not d.startswith(".")
+                    and d
+                    not in (
+                        "venv",
+                        "env",
+                        "node_modules",
+                        "dist",
+                        "build",
+                        "__pycache__",
+                    )
+                ]
+                for f in files:
+                    if f in (
+                        "pyproject.toml",
+                        "setup.py",
+                        "setup.cfg",
+                        "poetry.lock",
+                        "pdm.lock",
+                        "uv.lock",
+                        "Pipfile",
+                        "Pipfile.lock",
+                        "environment.yml",
+                        "environment.yaml",
+                    ):
+                        target_files.append(os.path.join(root, f))
+                    elif "requirements" in f and f.endswith(".txt"):
+                        if not re.match(r"^requirements-\d+(-\d+)?\.txt$", f):
+                            target_files.append(os.path.join(root, f))
+                    elif "Dockerfile" in f or f.endswith(".Dockerfile"):
+                        target_files.append(os.path.join(root, f))
+        else:
+            for f in os.listdir(path):
+                if f in (
+                    "pyproject.toml",
+                    "setup.py",
+                    "setup.cfg",
+                    "poetry.lock",
+                    "pdm.lock",
+                    "uv.lock",
+                    "Pipfile",
+                    "Pipfile.lock",
+                    "environment.yml",
+                    "environment.yaml",
+                ):
+                    target_files.append(os.path.join(path, f))
+                elif "requirements" in f and f.endswith(".txt"):
+                    if not re.match(r"^requirements-\d+(-\d+)?\.txt$", f):
+                        target_files.append(os.path.join(path, f))
+                elif "Dockerfile" in f or f.endswith(".Dockerfile"):
                     target_files.append(os.path.join(path, f))
     return target_files
 
@@ -566,14 +626,34 @@ def _update_dependencies_file(
 
 
 def _update_python_classifiers(
-    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
+    path: str,
+    target_py: str,
+    dry_run: bool = False,
+    only: list[str] | None = None,
+    workspace: bool = False,
 ) -> list[str]:
     """Clean up and bump Python classifiers in config files."""
     updated_files = []
     target_major, target_minor = map(int, target_py.split("."))
 
-    for filename in ["pyproject.toml", "setup.cfg", "setup.py"]:
-        fpath = os.path.join(path, filename)
+    files_to_check = []
+    if workspace:
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d
+                not in ("venv", "env", "node_modules", "dist", "build", "__pycache__")
+            ]
+            for filename in ["pyproject.toml", "setup.cfg", "setup.py"]:
+                if filename in files:
+                    files_to_check.append(os.path.join(root, filename))
+    else:
+        for filename in ["pyproject.toml", "setup.cfg", "setup.py"]:
+            files_to_check.append(os.path.join(path, filename))
+
+    for fpath in files_to_check:
         if not os.path.exists(fpath) or not _should_modify(fpath, only):
             continue
 
@@ -622,14 +702,40 @@ def _update_python_classifiers(
 
 
 def _update_dockerfiles(
-    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
+    path: str,
+    target_py: str,
+    dry_run: bool = False,
+    only: list[str] | None = None,
+    workspace: bool = False,
 ) -> list[str]:
     """Update Python versions in Dockerfiles."""
     updated_files = []
 
-    for filename in os.listdir(path):
-        if filename.startswith("Dockerfile"):
-            fpath = os.path.join(path, filename)
+    files_to_check = []
+    if workspace:
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d
+                not in ("venv", "env", "node_modules", "dist", "build", "__pycache__")
+            ]
+            for filename in files:
+                if filename.startswith("Dockerfile") or filename.endswith(
+                    ".Dockerfile"
+                ):
+                    files_to_check.append(os.path.join(root, filename))
+    else:
+        if os.path.exists(path) and os.path.isdir(path):
+            for filename in os.listdir(path):
+                if filename.startswith("Dockerfile") or filename.endswith(
+                    ".Dockerfile"
+                ):
+                    files_to_check.append(os.path.join(path, filename))
+
+    for fpath in files_to_check:
+        if True:
             if not os.path.isfile(fpath) or not _should_modify(fpath, only):
                 continue
 
@@ -653,13 +759,33 @@ def _update_dockerfiles(
 
 
 def _update_ci_cd_environments(
-    path: str, target_py: str, dry_run: bool = False, only: list[str] | None = None
+    path: str,
+    target_py: str,
+    dry_run: bool = False,
+    only: list[str] | None = None,
+    workspace: bool = False,
 ) -> list[str]:
     """Update Python version matrices in CI/CD files."""
     updated_files = []
 
-    tox_path = os.path.join(path, "tox.ini")
-    if os.path.exists(tox_path) and _should_modify(tox_path, only):
+    tox_paths = []
+    if workspace:
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d
+                not in ("venv", "env", "node_modules", "dist", "build", "__pycache__")
+            ]
+            if "tox.ini" in files:
+                tox_paths.append(os.path.join(root, "tox.ini"))
+    else:
+        tox_paths.append(os.path.join(path, "tox.ini"))
+
+    for tox_path in tox_paths:
+        if not os.path.exists(tox_path) or not _should_modify(tox_path, only):
+            continue
         with open(tox_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -691,23 +817,42 @@ def _update_ci_cd_environments(
             updated_files.append(tox_path)
 
     ci_files = []
-    gitlab_ci = os.path.join(path, ".gitlab-ci.yml")
-    if os.path.exists(gitlab_ci):
-        ci_files.append(gitlab_ci)
 
-    noxfile = os.path.join(path, "noxfile.py")
-    if os.path.exists(noxfile):
-        ci_files.append(noxfile)
+    def gather_ci(p: str) -> None:
+        """Gather CI files in directory."""
+        gitlab_ci = os.path.join(p, ".gitlab-ci.yml")
+        if os.path.exists(gitlab_ci):
+            ci_files.append(gitlab_ci)
+        noxfile = os.path.join(p, "noxfile.py")
+        if os.path.exists(noxfile):
+            ci_files.append(noxfile)
+        pre_commit = os.path.join(p, ".pre-commit-config.yaml")
+        if os.path.exists(pre_commit):
+            ci_files.append(pre_commit)
 
-    pre_commit = os.path.join(path, ".pre-commit-config.yaml")
-    if os.path.exists(pre_commit):
-        ci_files.append(pre_commit)
+    if workspace:
+        for root, dirs, _files in os.walk(path):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d
+                not in ("venv", "env", "node_modules", "dist", "build", "__pycache__")
+            ]
+            gather_ci(root)
+    else:
+        gather_ci(path)
 
+    # Always check root .github
     gh_dir = os.path.join(path, ".github", "workflows")
     if os.path.exists(gh_dir) and os.path.isdir(gh_dir):
         for filename in os.listdir(gh_dir):
             if filename.endswith(".yml") or filename.endswith(".yaml"):
                 ci_files.append(os.path.join(gh_dir, filename))
+
+    py_ver = os.path.join(path, ".python-version")
+    if os.path.exists(py_ver):
+        ci_files.append(py_ver)
 
     for ci_file in ci_files:
         if not _should_modify(ci_file, only):

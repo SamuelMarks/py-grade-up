@@ -27,6 +27,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     audit_parser.add_argument("path", help="Path to the project to audit.")
     audit_parser.add_argument(
+        "--workspace", action="store_true", help="Enable monorepo/workspace support"
+    )
+    audit_parser.add_argument(
         "--diff",
         action="store_true",
         help="Output unified diffs of proposed syntax changes",
@@ -39,6 +42,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     fix_parser = subparsers.add_parser("fix", help="Fix and upgrade the project.")
     fix_parser.add_argument("path", help="Path to the project to fix.")
+    fix_parser.add_argument(
+        "--workspace", action="store_true", help="Enable monorepo/workspace support"
+    )
     fix_parser.add_argument(
         "--only",
         type=str,
@@ -75,17 +81,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "revert", help="Revert the project to its previous state."
     )
     revert_parser.add_argument("path", help="Path to the project to revert.")
+    revert_parser.add_argument(
+        "--workspace", action="store_true", help="Enable monorepo/workspace support"
+    )
 
     security_parser = subparsers.add_parser(
         "security", help="Scan the project dependencies for security vulnerabilities."
     )
     security_parser.add_argument("path", help="Path to the project to scan.")
+    security_parser.add_argument(
+        "--workspace", action="store_true", help="Enable monorepo/workspace support"
+    )
 
     test_parser = subparsers.add_parser(
         "test",
         help="Test the project against a matrix of Python versions using uv and pyenv.",
     )
     test_parser.add_argument("path", help="Path to the project to test.")
+    test_parser.add_argument(
+        "--workspace", action="store_true", help="Enable monorepo/workspace support"
+    )
     test_parser.add_argument(
         "--no-parallel",
         action="store_true",
@@ -96,78 +111,91 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "graph", help="Visualize dependency graph and conflict trees."
     )
     graph_parser.add_argument("path", help="Path to the project to graph.")
+    graph_parser.add_argument(
+        "--workspace", action="store_true", help="Enable monorepo/workspace support"
+    )
+
+    bisect_parser = subparsers.add_parser(
+        "bisect", help="Bisect dependency updates to find which package broke tests."
+    )
+    bisect_parser.add_argument("path", help="Path to the project.")
+    bisect_parser.add_argument(
+        "--old", required=True, help="Path to the old requirements file."
+    )
+    bisect_parser.add_argument(
+        "--new", required=True, help="Path to the new requirements file."
+    )
+    bisect_parser.add_argument(
+        "--test-cmd", required=True, help="Command to run tests (e.g., 'pytest')."
+    )
+
+    resolve_parser = subparsers.add_parser(
+        "resolve", help="Suggest exact constraints to fix graph conflicts."
+    )
+    resolve_parser.add_argument("path", help="Path to the project to resolve.")
+    resolve_parser.add_argument(
+        "--workspace", action="store_true", help="Enable monorepo/workspace support"
+    )
 
     args = parser.parse_args(argv)
 
     only_types = args.only.split(",") if getattr(args, "only", None) else None
 
-    pg = PyGradeup(args.path)
+    pg = PyGradeup(args.path, workspace=getattr(args, "workspace", False))
 
     if args.command == "audit":
-        print(f"Auditing project at {args.path}")  # pragma: no cover
+        print(f"Auditing project at {args.path}")
         res_audit = pg.audit(show_diff=args.diff, only=only_types)
-        print(
-            f"Current Python version: {res_audit.current_version}"
-        )  # pragma: no cover
+        print(f"Current Python version: {res_audit.current_version}")
 
         if res_audit.target_version != res_audit.current_version:
-            print(
-                f"Target Python version: {res_audit.target_version}"
-            )  # pragma: no cover
+            print(f"Target Python version: {res_audit.target_version}")
             if res_audit.backup_name:
-                print(
-                    f"\nWould backup old requirements to {res_audit.backup_name}"
-                )  # pragma: no cover
+                print(f"\nWould backup old requirements to {res_audit.backup_name}")
         else:
-            print("No higher Python version is compatible.")  # pragma: no cover
+            print("No higher Python version is compatible.")
 
         if res_audit.files_to_upgrade:
-            print("\nFiles that would be upgraded:")  # pragma: no cover
+            print("\nFiles that would be upgraded:")
             for f_upgrade in res_audit.files_to_upgrade:
-                print(f"  - {f_upgrade}")  # pragma: no cover
+                print(f"  - {f_upgrade}")
             if args.diff and res_audit.proposed_diffs:
-                print("\nProposed syntax changes:")  # pragma: no cover
+                print("\nProposed syntax changes:")
                 sys.stdout.writelines(res_audit.proposed_diffs)
         else:
-            print("\nNo Python files need upgrading.")  # pragma: no cover
+            print("\nNo Python files need upgrading.")
 
         from py_gradeup.core import _get_target_files, _should_modify
 
         target_files = _get_target_files(args.path)
         for fpath in target_files:
             if os.path.exists(fpath) and _should_modify(fpath, only_types):
-                print(
-                    f"\nChecking dependencies in {os.path.basename(fpath)}..."
-                )  # pragma: no cover
+                print(f"\nChecking dependencies in {os.path.basename(fpath)}...")
                 updates = res_audit.dependency_updates.get(fpath, {})
                 if updates:
-                    print("Dependencies that would be bumped:")  # pragma: no cover
+                    print("Dependencies that would be bumped:")
                     for pkg, diff_str in updates.items():
-                        print(f"  - {pkg}: {diff_str}")  # pragma: no cover
+                        print(f"  - {pkg}: {diff_str}")
                 else:
-                    print("No dependencies need bumping.")  # pragma: no cover
+                    print("No dependencies need bumping.")
 
         if res_audit.target_version != res_audit.current_version:
-            print("\nPython version bounds would be updated.")  # pragma: no cover
+            print("\nPython version bounds would be updated.")
             if res_audit.ci_files_to_update:
-                print("\nCI/CD environments that would be updated:")  # pragma: no cover
+                print("\nCI/CD environments that would be updated:")
                 for ci_f in res_audit.ci_files_to_update:
-                    print(f"  - {os.path.relpath(ci_f, args.path)}")  # pragma: no cover
+                    print(f"  - {os.path.relpath(ci_f, args.path)}")
             if res_audit.cls_files_to_update:
-                print("\nPython classifiers that would be updated:")  # pragma: no cover
+                print("\nPython classifiers that would be updated:")
                 for cls_f in res_audit.cls_files_to_update:
-                    print(
-                        f"  - {os.path.relpath(cls_f, args.path)}"
-                    )  # pragma: no cover
+                    print(f"  - {os.path.relpath(cls_f, args.path)}")
             if res_audit.docker_files_to_update:
-                print("\nDockerfiles that would be updated:")  # pragma: no cover
+                print("\nDockerfiles that would be updated:")
                 for docker_f in res_audit.docker_files_to_update:
-                    print(
-                        f"  - {os.path.relpath(docker_f, args.path)}"
-                    )  # pragma: no cover
+                    print(f"  - {os.path.relpath(docker_f, args.path)}")
 
     elif args.command == "fix":
-        print(f"Fixing project at {args.path}")  # pragma: no cover
+        print(f"Fixing project at {args.path}")
         res_fix = pg.fix(
             run_tests=args.run_tests,
             interactive=args.interactive,
@@ -180,60 +208,50 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if res_fix.backup_path:
             print(
                 f"Backed up old requirements to {os.path.basename(res_fix.backup_path)}"
-            )  # pragma: no cover
+            )
 
         for file_path in res_fix.files_upgraded:
-            print(f"Upgraded {file_path}")  # pragma: no cover
+            print(f"Upgraded {file_path}")
 
         if not res_fix.files_upgraded:
-            print("No Python files were upgraded.")  # pragma: no cover
+            print("No Python files were upgraded.")
         else:
-            print(
-                f"\nUpgraded {len(res_fix.files_upgraded)} Python files."
-            )  # pragma: no cover
+            print(f"\nUpgraded {len(res_fix.files_upgraded)} Python files.")
 
         from py_gradeup.core import _get_target_files, _should_modify
 
         target_files = _get_target_files(args.path)
         for fpath in target_files:
             if os.path.exists(fpath) and _should_modify(fpath, only_types):
-                print(
-                    f"\nUpdating dependencies in {os.path.basename(fpath)}..."
-                )  # pragma: no cover
+                print(f"\nUpdating dependencies in {os.path.basename(fpath)}...")
                 updates = res_fix.dependency_updates.get(fpath, {})
                 if updates:
-                    print("Bumped dependencies:")  # pragma: no cover
+                    print("Bumped dependencies:")
                     for pkg, diff_str in updates.items():
-                        print(f"  - {pkg}: {diff_str}")  # pragma: no cover
+                        print(f"  - {pkg}: {diff_str}")
                 else:
-                    print("No dependencies bumped.")  # pragma: no cover
+                    print("No dependencies bumped.")
 
         if res_fix.target_version != res_fix.current_version:
-            print(
-                f"Updated Python version bounds to >= {res_fix.target_version}"
-            )  # pragma: no cover
+            print(f"Updated Python version bounds to >= {res_fix.target_version}")
             if res_fix.ci_files_updated:
-                print("\nUpdated CI/CD environments:")  # pragma: no cover
+                print("\nUpdated CI/CD environments:")
                 for ci_f in res_fix.ci_files_updated:
-                    print(f"  - {os.path.relpath(ci_f, args.path)}")  # pragma: no cover
+                    print(f"  - {os.path.relpath(ci_f, args.path)}")
             if res_fix.cls_files_updated:
-                print("\nUpdated Python classifiers:")  # pragma: no cover
+                print("\nUpdated Python classifiers:")
                 for cls_f in res_fix.cls_files_updated:
-                    print(
-                        f"  - {os.path.relpath(cls_f, args.path)}"
-                    )  # pragma: no cover
+                    print(f"  - {os.path.relpath(cls_f, args.path)}")
             if res_fix.docker_files_updated:
-                print("\nUpdated Dockerfiles:")  # pragma: no cover
+                print("\nUpdated Dockerfiles:")
                 for docker_f in res_fix.docker_files_updated:
-                    print(
-                        f"  - {os.path.relpath(docker_f, args.path)}"
-                    )  # pragma: no cover
+                    print(f"  - {os.path.relpath(docker_f, args.path)}")
 
         if args.run_tests:
-            print("\nVerifying upgrades by running tests...")  # pragma: no cover
+            print("\nVerifying upgrades by running tests...")
             if res_fix.tests_passed:
-                print("Tests passed successfully.")  # pragma: no cover
-            elif res_fix.tests_passed is False:  # pragma: no cover
+                print("Tests passed successfully.")
+            elif res_fix.tests_passed is False:
                 # Actual print was handled inside core earlier, but now we must check it
                 # Wait, the core `_run_tests` might still print?
                 # The requirements state sdk.py MUST NOT print anything to standard output.
@@ -241,50 +259,42 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 # Actually, the instructions say "methods must call the internal helper functions ... but they MUST RETURN the strongly-typed objects ... and MUST NOT print anything to standard output."
                 # Does `_run_tests` print? Yes, it does in `core.py`.
                 # I should remove prints from the helpers if possible, or suppress them in sdk.py?
-                # Wait, "remove audit_project, fix_project... from core.py... Move all the print() logic that used to be in the core functions into cli.py".  # pragma: no cover
+                # Wait, "remove audit_project, fix_project... from core.py... Move all the print() logic that used to be in the core functions into cli.py".
                 pass
 
         if args.commit:
-            print("\nCommitting changes...")  # pragma: no cover
+            print("\nCommitting changes...")
             # We already ran git commit in `sdk.py`, wait, `sdk.py` ran it but didn't return the print result.
             # I'll just print success if we reach here, although it might be silent.
-            print(
-                "Successfully committed changes."
-            )  # Assuming it succeeded.  # pragma: no cover
+            print("Successfully committed changes.")  # Assuming it succeeded.
 
     elif args.command == "revert":
-        print(f"Reverting project at {args.path}")  # pragma: no cover
+        print(f"Reverting project at {args.path}")
         res_revert = pg.revert()
         if res_revert.git_restored:
-            print("Reverted file modifications via git.")  # pragma: no cover
+            print("Reverted file modifications via git.")
         elif res_revert.git_error:
             if "Git not found." in res_revert.git_error:
                 print(
                     "Git not found. Cannot automatically revert files.", file=sys.stderr
-                )  # pragma: no cover
+                )
             else:
-                print(
-                    f"Git restore failed: {res_revert.git_error}", file=sys.stderr
-                )  # pragma: no cover
+                print(f"Git restore failed: {res_revert.git_error}", file=sys.stderr)
 
         if res_revert.dependencies_restored_from:
-            print(
-                f"Restored dependencies from {res_revert.dependencies_restored_from}"
-            )  # pragma: no cover
+            print(f"Restored dependencies from {res_revert.dependencies_restored_from}")
         else:
-            print("No dependency backups found.")  # pragma: no cover
+            print("No dependency backups found.")
 
     elif args.command == "security":
-        print(
-            f"Scanning project for security vulnerabilities at {args.path}"
-        )  # pragma: no cover
+        print(f"Scanning project for security vulnerabilities at {args.path}")
         res_sec = pg.security()
         from py_gradeup.core import _get_target_files
 
         target_files = _get_target_files(args.path)
         if not target_files:
-            print("No dependency files found to scan.")  # pragma: no cover
-            return 0  # pragma: no cover
+            print("No dependency files found to scan.")
+            return 0
 
         from py_gradeup.security import _parse_dependencies
 
@@ -292,77 +302,67 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for t_file in target_files:
             all_deps.update(_parse_dependencies(t_file))
         if not all_deps:
-            print("No pinned dependencies (==) found to scan.")  # pragma: no cover
-            return 0  # pragma: no cover
+            print("No pinned dependencies (==) found to scan.")
+            return 0
 
         print(
             f"Found {len(all_deps)} pinned dependencies. Checking against vulnerability databases..."
-        )  # pragma: no cover
+        )
 
         if res_sec.vulnerabilities_found:
             for pkg_ver, vulns in res_sec.vulnerabilities.items():
-                print(f"\n[!] Vulnerabilities found in {pkg_ver}:")  # pragma: no cover
+                print(f"\n[!] Vulnerabilities found in {pkg_ver}:")
                 for v in vulns:
-                    print(f"    - ID: {v['id']}")  # pragma: no cover
+                    print(f"    - ID: {v['id']}")
                     if v["details"]:
                         details = v["details"]
                         if len(details) > 200:
-                            details = details[:197] + "..."  # pragma: no cover
-                        print(f"      Details: {details}")  # pragma: no cover
+                            details = details[:197] + "..."
+                        print(f"      Details: {details}")
             return 1
         else:
-            print(
-                "\nNo known vulnerabilities found in pinned dependencies."
-            )  # pragma: no cover
+            print("\nNo known vulnerabilities found in pinned dependencies.")
             return 0
 
     elif args.command == "test":
-        print(
-            f"Running tox-style test matrix for project at {args.path}"
-        )  # pragma: no cover
+        print(f"Running tox-style test matrix for project at {args.path}")
         res_test = pg.test(parallel=not args.no_parallel)
-        print(res_test.output)  # pragma: no cover
-        print("\n--- Matrix Summary ---")  # pragma: no cover
+        print(res_test.output)
+        print("\n--- Matrix Summary ---")
         for env_name, passed in res_test.results.items():
-            status = "PASSED" if passed else "FAILED"  # pragma: no cover
-            print(f"{env_name}: {status}")  # pragma: no cover
+            status = "PASSED" if passed else "FAILED"
+            print(f"{env_name}: {status}")
         if not res_test.all_passed:
             return 1
 
     elif command := args.command:
         if command == "graph":
-            print(f"Generating dependency graph for {args.path}...")  # pragma: no cover
+            print(f"Generating dependency graph for {args.path}...")
             from py_gradeup.core import _get_target_files
 
             target_files = _get_target_files(args.path)
             if not target_files:
-                print("No dependency files found to visualize.")  # pragma: no cover
-                return 0  # pragma: no cover
+                print("No dependency files found to visualize.")
+                return 0
 
             res_graph = pg.graph()
             if res_graph.tree is None and res_graph.conflict_error is None:
-                print(
-                    "No valid packages found in dependency files."
-                )  # pragma: no cover
-                return 0  # pragma: no cover
+                print("No valid packages found in dependency files.")
+                return 0
 
-            print(
-                "Resolving dependencies... (this may take a moment)"
-            )  # pragma: no cover
+            print("Resolving dependencies... (this may take a moment)")
             if res_graph.conflict_error:
                 if (
                     "No solution found" in res_graph.conflict_error
                     or "conflict" in res_graph.conflict_error.lower()
                 ):
-                    print("\n[!] Dependency Conflict Detected:\n")  # pragma: no cover
-                    print(res_graph.conflict_error)  # pragma: no cover
+                    print("\n[!] Dependency Conflict Detected:\n")
+                    print(res_graph.conflict_error)
                 else:
-                    print(
-                        f"\n[!] Resolution Error:\n{res_graph.conflict_error}"
-                    )  # pragma: no cover
-            elif res_graph.tree:  # pragma: no cover
-                print("\nDependency Tree:")  # pragma: no cover
-                print(res_graph.tree, end="")  # pragma: no cover
+                    print(f"\n[!] Resolution Error:\n{res_graph.conflict_error}")
+            elif res_graph.tree:
+                print("\nDependency Tree:")
+                print(res_graph.tree, end="")
 
     return 0
 

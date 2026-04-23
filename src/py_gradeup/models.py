@@ -115,3 +115,33 @@ class GraphResult:
 
     tree: Optional[str] = None
     conflict_error: Optional[str] = None
+
+
+@dataclass
+class BisectResult:
+    """Represents the results of a dependency bisect operation.
+
+    Attributes:
+        culprit: The package name that introduced the test failure, if found.
+        old_version: The version of the culprit before the upgrade.
+        new_version: The version of the culprit after the upgrade.
+    """
+
+    culprit: Optional[str] = None
+    old_version: Optional[str] = None
+    new_version: Optional[str] = None
+
+
+@dataclass
+class ResolveResult:
+    """Represents the results of a conflict resolution operation.
+
+    Attributes:
+        success: True if a resolution suggestion was found.
+        suggestions: A list of string constraints suggested to fix the graph conflicts.
+        error: An error message if resolution suggestion failed.
+    """
+
+    success: bool
+    suggestions: List[str] = field(default_factory=list)
+    error: Optional[str] = None

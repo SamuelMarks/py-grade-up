@@ -31,6 +31,13 @@ def _parse_dependencies(file_path: str) -> dict[str, str]:
         pattern = r'name\s*=\s*["\']([a-zA-Z0-9\-_]+)["\']\s*\n\s*version\s*=\s*["\']([0-9\.]+)["\']'
         for match in re.finditer(pattern, content):
             deps[match.group(1).lower()] = match.group(2)
+    elif "Dockerfile" in os.path.basename(file_path) or file_path.endswith(
+        ".Dockerfile"
+    ):
+        for line in content.splitlines():
+            if "pip install" in line or "pip3 install" in line:
+                for match in re.finditer(r"\b([a-zA-Z0-9\-_]+)==([0-9\.]+)\b", line):
+                    deps[match.group(1).lower()] = match.group(2)
     else:
         # standard requirements.txt
         for line in content.splitlines():

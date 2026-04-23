@@ -4,10 +4,11 @@ This document outlines the internal architecture of `py-gradeup` and how it coor
 
 ## High-Level Overview
 
-`py-gradeup` is split into two primary layers:
+`py-gradeup` is split into three primary layers:
 
-1. **CLI Layer (`src/py_gradeup/cli.py`)**: Handles argument parsing, subcommand delegation (`audit`, `fix`, `revert`, `security`, `test`, `graph`), and user input validation.
-2. **Core Logic (`src/py_gradeup/core.py`, `graph.py`, `security.py`)**: Implements the actual file discovery, AST refactoring, dependency resolution protocols, graph visualization, and security auditing.
+1. **CLI Layer (`src/py_gradeup/cli.py`)**: Handles argument parsing, subcommand delegation (`audit`, `fix`, `revert`, `security`, `test`, `graph`, `resolve`, `bisect`), and user input validation, rendering output nicely to the terminal.
+2. **SDK Layer (`src/py_gradeup/sdk.py`, `models.py`)**: Provides a unified, programmatic object-oriented interface (`PyGradeup`) that orchestrates the underlying tools and returns typed data models (`AuditResult`, `FixResult`, etc.) instead of printing to stdout. This makes it ideal for custom automation.
+3. **Core Logic (`src/py_gradeup/core.py`, `graph.py`, `security.py`)**: Implements the actual file discovery, AST refactoring, dependency resolution protocols, graph visualization, and security auditing.
 
 ### 1. Python Version Discovery
 
@@ -69,3 +70,11 @@ The `test` command orchestrates integration testing dynamically:
 - **Range Resolution:** Determines the minimum supported Python version from configuration and builds a matrix incrementally up to the latest known released version (e.g., 3.8 up to 3.14).
 - **Framework Discovery:** Probes the workspace for `pytest` footprints (like `pytest.ini` or definitions in `requirements-dev.txt`). If found, it natively bootstraps `pytest`; otherwise, it gracefully falls back to the standard library `unittest` runner.
 - **Concurrency:** Utilizing Python's `concurrent.futures.ThreadPoolExecutor`, it dispatches isolated test runs simultaneously using both `uv` and `pyenv` virtual environments. Logs are aggregated and synchronized safely upon thread completion, minimizing I/O bottlenecks.
+
+### 10. Automated Bisection
+
+The `bisect` command helps developers track down test regressions caused by dependency version bumps. It takes an old known-good `requirements.txt` and a new failing `requirements.txt`, then iteratively executes a binary search against the changing packages, reinstalling specific package subsets into a temporary `uv` virtual environment and running the user-provided test command until it pinpoints the exact package upgrade that caused the failure.
+
+### 11. Conflict Resolution Suggestions
+
+The `resolve` command works alongside `graph` to actively parse `uv pip compile` failure outputs when a dependency tree cannot be resolved. It analyzes the conflicting edges and calculates explicit version pinning (`package==version`) suggestions that satisfy the intersection of constraints, saving developers hours of manual dependency tree untangling.

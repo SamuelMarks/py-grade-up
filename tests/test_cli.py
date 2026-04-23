@@ -180,3 +180,17 @@ def test_test_command_fail(mock_test, capsys) -> None:
     exit_code = main(["test", "."])
     assert exit_code == 1
     mock_test.assert_called_once_with(parallel=True)
+
+
+@patch("py_gradeup.cli.PyGradeup")
+def test_cli_workspace_flag(mock_sdk) -> None:
+    """Test --workspace flag in cli."""
+    mock_instance = MagicMock()
+    mock_instance.audit.return_value = MagicMock(
+        target_version="3.10", files_to_upgrade=[]
+    )
+    mock_sdk.return_value = mock_instance
+
+    main(["audit", ".", "--workspace"])
+
+    mock_sdk.assert_called_with(".", workspace=True)
