@@ -86,6 +86,7 @@ class TestResult:
         output: Combined output from test runners.
     """
 
+    __test__ = False
     results: Dict[str, bool] = field(default_factory=dict)
     all_passed: bool = False
     output: str = ""

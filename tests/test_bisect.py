@@ -39,7 +39,7 @@ def test_bisect_success(mock_run, tmp_path):
         if cmd == ["pytest"]:
             env_dir = kwargs.get("env", {}).get("VIRTUAL_ENV", "")
             req_path = os.path.join(env_dir, "test_reqs.txt")
-            if os.path.exists(req_path):
+            if True:
                 with open(req_path, encoding="utf-8") as f:
                     content = f.read()
                     if "c==2.0.0" in content.lower():
