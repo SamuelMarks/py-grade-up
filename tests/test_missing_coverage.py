@@ -225,3 +225,20 @@ def test_cli_revert_git_not_found(capsys):
             main()
         _, err = capsys.readouterr()
         assert "Git not found. Cannot automatically revert files." in err
+
+
+def test_cli_security_no_deps(capsys):
+    """Test security command when files exist but have no dependencies."""
+    from py_gradeup.cli import main
+
+    with patch("py_gradeup.sdk.PyGradeup.security"), patch(
+        "py_gradeup.core._get_target_files"
+    ) as mock_get_target_files, patch(
+        "py_gradeup.security._parse_dependencies"
+    ) as mock_parse_deps:
+        mock_get_target_files.return_value = ["requirements.txt"]
+        mock_parse_deps.return_value = {}
+        with patch("sys.argv", ["py-gradeup", "security", "."]):
+            assert main() == 0
+        out, _ = capsys.readouterr()
+        assert "No pinned dependencies (==) found to scan." in out
