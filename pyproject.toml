@@ -20,7 +20,7 @@ path = "src/py_gradeup/__init__.py"
 files = ["requirements.txt"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=100"
+addopts = "--cov=. --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=100"
 pythonpath = ["src"]
 
 [tool.interrogate]
