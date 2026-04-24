@@ -26,10 +26,10 @@ from py_gradeup.models import (
     BisectResult,
     FixResult,
     GraphResult,
+    MatrixResult,
     ResolveResult,
     RevertResult,
     SecurityResult,
-    TestResult,
 )
 from py_gradeup.security import _parse_dependencies, check_vulnerabilities
 
@@ -354,14 +354,14 @@ class PyGradeup:
             dependencies_restored_from=dependencies_restored_from,
         )
 
-    def test(self, parallel: bool = True) -> TestResult:
+    def test(self, parallel: bool = True) -> MatrixResult:
         """Test the project against multiple Python environments.
 
         Args:
             parallel: If True, run tests concurrently across environments.
 
         Returns:
-            A TestResult object with testing outcomes.
+            A MatrixResult object with testing outcomes.
         """
         current_ver = _get_current_python_version(self.path)
         target_files = _get_target_files(self.path, workspace=self.workspace)
@@ -422,7 +422,7 @@ class PyGradeup:
             if not passed:
                 all_passed = False
 
-        return TestResult(
+        return MatrixResult(
             results=results, all_passed=all_passed, output="\n".join(outputs)
         )
 

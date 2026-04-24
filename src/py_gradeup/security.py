@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 """Security auditing for dependencies."""
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ def _parse_dependencies(file_path: str) -> dict[str, str]:
         for match in re.finditer(pattern, content, flags=re.MULTILINE):
             deps[match.group(2).lower()] = match.group(4)
     elif file_path.endswith(".lock"):
-        pattern = r'name\s*=\s*["\']([a-zA-Z0-9\-_]+)["\']\s*\n\s*version\s*=\s*["\']([0-9\.]+)["\']'
+        pattern = r'name\s*=\s*["\']([a-zA-Z0-9\-_]+)["\']\s*\n\s*version\s*=\s*["\']([0-9\.]+)["\']'  # noqa: E501
         for match in re.finditer(pattern, content):
             deps[match.group(1).lower()] = match.group(2)
     elif "Dockerfile" in os.path.basename(file_path) or file_path.endswith(

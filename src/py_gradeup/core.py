@@ -1,4 +1,3 @@
-# ruff: noqa: E501, SIM102, SIM115
 """Core logic for py-gradeup auditing and fixing."""
 
 from __future__ import annotations
@@ -336,15 +335,17 @@ def _prepare_compile_targets(
             with open(fpath, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".in")
-            tmp_paths.append(tmp.name)
-            for line in lines:
-                m = re.match(r"^([a-zA-Z0-9\-_]+)[>=]=([0-9\.]+)", line.strip())
-                if m:
-                    tmp.write(f"{m.group(1)}>={m.group(2)}\n")
-                else:
-                    tmp.write(line)
-            tmp.close()
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, suffix=".in"
+            ) as tmp:
+                tmp_paths.append(tmp.name)
+                for line in lines:
+                    m = re.match(r"^([a-zA-Z0-9\-_]+)[>=]=([0-9\.]+)", line.strip())
+                    if m:
+                        tmp.write(f"{m.group(1)}>={m.group(2)}\n")
+                    else:
+                        tmp.write(line)
+
             compile_targets.append(tmp.name)
         elif fpath.endswith(".lock"):
             if fpath.endswith("Pipfile.lock"):
@@ -352,53 +353,61 @@ def _prepare_compile_targets(
 
                 with open(fpath, encoding="utf-8") as f:
                     data = json.load(f)
-                tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".in")
-                tmp_paths.append(tmp.name)
-                for section in ["default", "develop"]:
-                    for pkg, info in data.get(section, {}).items():
-                        version = info.get("version", "").lstrip("=")
-                        if version:
-                            tmp.write(f"{pkg}=={version}\n")
-                tmp.close()
+                with tempfile.NamedTemporaryFile(
+                    mode="w", delete=False, suffix=".in"
+                ) as tmp:
+                    tmp_paths.append(tmp.name)
+                    for section in ["default", "develop"]:
+                        for pkg, info in data.get(section, {}).items():
+                            version = info.get("version", "").lstrip("=")
+                            if version:
+                                tmp.write(f"{pkg}=={version}\n")
+
                 compile_targets.append(tmp.name)
             else:
                 with open(fpath, encoding="utf-8") as f:
                     content_f = f.read()
-                tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".in")
-                tmp_paths.append(tmp.name)
-                for match in re.finditer(
-                    r"name\s*=\s*[\"']([^\"']+)[\"'].*?version\s*=\s*[\"']([^\"']+)[\"']",
-                    content_f,
-                    re.DOTALL,
-                ):
-                    if "[[package]]" not in match.group(0)[10:]:
-                        tmp.write(f"{match.group(1)}=={match.group(2)}\n")
-                tmp.close()
+                with tempfile.NamedTemporaryFile(
+                    mode="w", delete=False, suffix=".in"
+                ) as tmp:
+                    tmp_paths.append(tmp.name)
+                    for match in re.finditer(
+                        r"name\s*=\s*[\"']([^\"']+)[\"'].*?version\s*=\s*[\"']([^\"']+)[\"']",  # noqa: E501
+                        content_f,
+                        re.DOTALL,
+                    ):
+                        if "[[package]]" not in match.group(0)[10:]:
+                            tmp.write(f"{match.group(1)}=={match.group(2)}\n")
+
                 compile_targets.append(tmp.name)
         elif fpath.endswith(".yml") or fpath.endswith(".yaml"):
             with open(fpath, encoding="utf-8") as f:
                 content_f = f.read()
-            tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".in")
-            tmp_paths.append(tmp.name)
-            for match in re.finditer(
-                r"-\s*([a-zA-Z0-9\-_]+)[>=]=?([0-9\.]+)", content_f
-            ):
-                if match.group(1).lower() != "python":
-                    tmp.write(f"{match.group(1)}>={match.group(2)}\n")
-            tmp.close()
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, suffix=".in"
+            ) as tmp:
+                tmp_paths.append(tmp.name)
+                for match in re.finditer(
+                    r"-\s*([a-zA-Z0-9\-_]+)[>=]=?([0-9\.]+)", content_f
+                ):
+                    if match.group(1).lower() != "python":
+                        tmp.write(f"{match.group(1)}>={match.group(2)}\n")
+
             compile_targets.append(tmp.name)
         elif fpath.endswith("Pipfile"):
             with open(fpath, encoding="utf-8") as f:
                 content_f = f.read()
-            tmp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".in")
-            tmp_paths.append(tmp.name)
-            for match in re.finditer(
-                r"^([a-zA-Z0-9\-_]+)\s*=\s*[\"'][>=]=?([0-9\.]+)[\"']",
-                content_f,
-                re.MULTILINE,
-            ):
-                tmp.write(f"{match.group(1)}>={match.group(2)}\n")
-            tmp.close()
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, suffix=".in"
+            ) as tmp:
+                tmp_paths.append(tmp.name)
+                for match in re.finditer(
+                    r"^([a-zA-Z0-9\-_]+)\s*=\s*[\"'][>=]=?([0-9\.]+)[\"']",
+                    content_f,
+                    re.MULTILINE,
+                ):
+                    tmp.write(f"{match.group(1)}>={match.group(2)}\n")
+
             compile_targets.append(tmp.name)
         else:
             compile_targets.append(fpath)
@@ -589,12 +598,12 @@ def _update_dependencies_file(
         or file_path.endswith("setup.py")
         or file_path.endswith("Pipfile")
     ):
-        pattern = r"([\"\']|^|\n)([a-zA-Z0-9\-_]+)([\"\']?\s*[=:]\s*[\"\']?[>=]=?|[>=]=?)([0-9\.]+)([\"\']?)"
+        pattern = r"([\"\']|^|\n)([a-zA-Z0-9\-_]+)([\"\']?\s*[=:]\s*[\"\']?[>=]=?|[>=]=?)([0-9\.]+)([\"\']?)"  # noqa: E501
     elif file_path.endswith(".lock"):
         if file_path.endswith("Pipfile.lock"):
-            pattern = r"([\"\'])([a-zA-Z0-9\-_]+)([\"\']\s*:\s*\{\s*[\"\']version[\"\']\s*:\s*[\"\']={1,2})([0-9\.]+)([\"\'])"
+            pattern = r"([\"\'])([a-zA-Z0-9\-_]+)([\"\']\s*:\s*\{\s*[\"\']version[\"\']\s*:\s*[\"\']={1,2})([0-9\.]+)([\"\'])"  # noqa: E501
         else:
-            pattern = r"(name\s*=\s*[\"\'])([a-zA-Z0-9\-_]+)([\"\']\s*\n\s*version\s*=\s*[\"\'])([0-9\.]+)([\"\'])"
+            pattern = r"(name\s*=\s*[\"\'])([a-zA-Z0-9\-_]+)([\"\']\s*\n\s*version\s*=\s*[\"\'])([0-9\.]+)([\"\'])"  # noqa: E501
     elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
         pattern = r"(-\s*)([a-zA-Z0-9\-_]+)([>=]=?)([0-9\.]+)($|\s)"
     else:
@@ -686,7 +695,7 @@ def _update_python_classifiers(
             return full_match
 
         new_content = re.sub(
-            r'^[ \t]*["\']?Programming Language :: Python :: (3\.\d+)["\']?,?[ \t]*(?:\r?\n|$)',
+            r'^[ \t]*["\']?Programming Language :: Python :: (3\.\d+)["\']?,?[ \t]*(?:\r?\n|$)',  # noqa: E501
             repl,
             content,
             flags=re.MULTILINE,
@@ -867,18 +876,18 @@ def _update_ci_cd_environments(
             content,
         )
         new_content = re.sub(
-            r'(python-version\s*:\s*|UV_PYTHON\s*:\s*|python\s*:\s*(?:python)?|image\s*:\s*python:|python_versions\s*=\s*|python\s*=\s*|language_version\s*:\s*python)([\'"]?)3\.\d+([\'"]?)',
+            r'(python-version\s*:\s*|UV_PYTHON\s*:\s*|python\s*:\s*(?:python)?|image\s*:\s*python:|python_versions\s*=\s*|python\s*=\s*|language_version\s*:\s*python)([\'"]?)3\.\d+([\'"]?)',  # noqa: E501
             rf"\g<1>\g<2>{target_py}\g<3>",
             new_content,
         )
         keys_pattern = r"python-version|UV_PYTHON|python|python_versions"
         new_content = re.sub(
-            rf'({keys_pattern})\s*:\s*\n([ \t]*-\s*[\'"]?)3\.\d+([\'"]?(?:\s*\n|$))(?:[ \t]*-\s*[\'"]?3\.\d+[\'"]?(?:\s*\n|$))*',
+            rf'({keys_pattern})\s*:\s*\n([ \t]*-\s*[\'"]?)3\.\d+([\'"]?(?:\s*\n|$))(?:[ \t]*-\s*[\'"]?3\.\d+[\'"]?(?:\s*\n|$))*',  # noqa: E501
             rf"\g<1>:\n\g<2>{target_py}\g<3>",
             new_content,
         )
         new_content = re.sub(
-            rf'({keys_pattern})\s*:\s*\|\s*\n(?:[ \t]+[\'"]?3\.\d+[\'"]?\s*\n)*([ \t]+[\'"]?)3\.\d+([\'"]?(?:\s*\n|$))',
+            rf'({keys_pattern})\s*:\s*\|\s*\n(?:[ \t]+[\'"]?3\.\d+[\'"]?\s*\n)*([ \t]+[\'"]?)3\.\d+([\'"]?(?:\s*\n|$))',  # noqa: E501
             rf"\g<1>: |\n\g<2>{target_py}\g<3>",
             new_content,
         )
@@ -943,7 +952,7 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
     Args:
         path: The path to the project directory.
         target_py: The target Python version.
-        versioned: Whether to create a versioned virtual environment (e.g. .venv-uv-3-12).
+        versioned: Whether to create a versioned virtual environment.
 
     Returns:
         True if successful, False otherwise.
@@ -966,12 +975,11 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
     venv_dir_uv = f".venv-uv-{version_suffix}" if versioned else ".venv"
     venv_path_uv = os.path.join(path, venv_dir_uv)
 
-    if versioned:
-        if os.path.exists(venv_path_uv):
-            try:
-                shutil.rmtree(venv_path_uv)
-            except Exception:
-                return False
+    if versioned and os.path.exists(venv_path_uv):
+        try:
+            shutil.rmtree(venv_path_uv)
+        except Exception:
+            return False
 
     cmd_uv = ["uv", "venv", venv_dir_uv, "--python", target_py]
     try:
@@ -985,12 +993,11 @@ def _recreate_venv(path: str, target_py: str, versioned: bool = False) -> bool:
     venv_dir_pyenv = f".venv-pyenv-{version_suffix}" if versioned else ".venv"
     venv_path_pyenv = os.path.join(path, venv_dir_pyenv)
 
-    if versioned:
-        if os.path.exists(venv_path_pyenv):
-            try:
-                shutil.rmtree(venv_path_pyenv)
-            except Exception:
-                return False
+    if versioned and os.path.exists(venv_path_pyenv):
+        try:
+            shutil.rmtree(venv_path_pyenv)
+        except Exception:
+            return False
 
     env = os.environ.copy()
     env["PYENV_VERSION"] = target_py

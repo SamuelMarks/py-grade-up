@@ -1,7 +1,5 @@
 """Test module."""
 
-# ruff: noqa: D100
-# ruff: noqa: D103, E501
 from unittest.mock import MagicMock, patch
 
 from py_gradeup.sdk import PyGradeup

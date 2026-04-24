@@ -77,7 +77,7 @@ class RevertResult:
 
 
 @dataclass
-class TestResult:
+class MatrixResult:
     """Represents the results of a multi-environment test operation.
 
     Attributes:
@@ -86,7 +86,6 @@ class TestResult:
         output: Combined output from test runners.
     """
 
-    __test__ = False
     results: Dict[str, bool] = field(default_factory=dict)
     all_passed: bool = False
     output: str = ""

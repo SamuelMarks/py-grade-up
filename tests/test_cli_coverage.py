@@ -7,9 +7,9 @@ from py_gradeup.models import (
     AuditResult,
     FixResult,
     GraphResult,
+    MatrixResult,
     RevertResult,
     SecurityResult,
-    TestResult,
 )
 
 
@@ -123,7 +123,7 @@ def test_cli_coverage_security(mock_sdk, capsys):
 def test_cli_coverage_test(mock_sdk, capsys):
     """Test function."""
     mock_instance = mock_sdk.return_value
-    mock_instance.test.return_value = TestResult(
+    mock_instance.test.return_value = MatrixResult(
         all_passed=False, output="out", results={"env1": True, "env2": False}
     )
     main(["test", "."])

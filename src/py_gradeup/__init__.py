@@ -6,9 +6,9 @@ from .models import (
     AuditResult,
     FixResult,
     GraphResult,
+    MatrixResult,
     RevertResult,
     SecurityResult,
-    TestResult,
 )
 from .sdk import PyGradeup
 
@@ -17,7 +17,7 @@ __all__ = [
     "AuditResult",
     "FixResult",
     "RevertResult",
-    "TestResult",
+    "MatrixResult",
     "SecurityResult",
     "GraphResult",
 ]

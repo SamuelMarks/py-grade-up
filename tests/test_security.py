@@ -1,4 +1,3 @@
-# ruff: noqa: D103, E501
 """Tests for the security auditing module."""
 
 import json

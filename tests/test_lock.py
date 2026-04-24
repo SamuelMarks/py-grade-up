@@ -1,4 +1,3 @@
-# ruff: noqa: D103, E501
 """Test lock file operations."""
 
 from unittest.mock import MagicMock, patch
