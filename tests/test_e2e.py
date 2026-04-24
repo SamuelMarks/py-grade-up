@@ -41,6 +41,10 @@ def test_e2e_fix_and_audit(tmp_path: Path) -> None:
     env.pop("GIT_INDEX_FILE", None)
     env.pop("GIT_DIR", None)
     env.pop("GIT_WORK_TREE", None)
+    env["GIT_AUTHOR_NAME"] = "test"
+    env["GIT_AUTHOR_EMAIL"] = "test@example.com"
+    env["GIT_COMMITTER_NAME"] = "test"
+    env["GIT_COMMITTER_EMAIL"] = "test@example.com"
     subprocess.run(
         ["git", "init"], cwd=str(tmp_path), check=True, capture_output=True, env=env
     )
@@ -82,6 +86,10 @@ def test_e2e_revert(tmp_path: Path) -> None:
     env.pop("GIT_INDEX_FILE", None)
     env.pop("GIT_DIR", None)
     env.pop("GIT_WORK_TREE", None)
+    env["GIT_AUTHOR_NAME"] = "test"
+    env["GIT_AUTHOR_EMAIL"] = "test@example.com"
+    env["GIT_COMMITTER_NAME"] = "test"
+    env["GIT_COMMITTER_EMAIL"] = "test@example.com"
     subprocess.run(
         ["git", "init"], cwd=str(tmp_path), check=True, capture_output=True, env=env
     )
